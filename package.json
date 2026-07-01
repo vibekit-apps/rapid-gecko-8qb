@@ -1,0 +1,7 @@
+{
+  "name": "rapid-gecko-8qb",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

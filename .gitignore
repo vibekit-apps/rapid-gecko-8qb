@@ -1,0 +1,6 @@
+
+# VibeKit internal — agent state, never deployed (architecture.md: two ownership tiers)
+.openclaw/
+.vibekit/
+memory/
+node_modules/
