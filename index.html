@@ -32,6 +32,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
 .folder-item:hover .folder-actions{display:flex}
 .folder-actions button{background:none;border:none;cursor:pointer;padding:3px 5px;border-radius:5px;color:var(--mute);font-size:.75rem}
 .folder-actions button:hover{background:#e5e1da;color:var(--fg)}
+@media (hover:none){.folder-item .folder-actions{display:flex}}
 .new-folder-btn{margin:.75rem 1rem;display:flex;align-items:center;gap:.5rem;padding:.6rem .875rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.8125rem;font-weight:600;cursor:pointer;width:calc(100% - 2rem)}
 .new-folder-btn:hover{background:#a93226}
 
@@ -130,8 +131,8 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
     <label>Folder Name</label>
     <input type="text" id="folderNameInput" placeholder="e.g. Desserts" maxlength="60">
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveFolder()">Save</button>
+      <button type="button" class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="saveFolder()">Save</button>
     </div>
   </div>
 </div>
