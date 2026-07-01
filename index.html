@@ -310,17 +310,23 @@ function openEditFolder(id) {
 async function saveFolder() {
   const name = document.getElementById('folderNameInput').value.trim();
   if (!name) return;
-  if (editingFolderId) {
-    const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-    const f = await r.json();
-    const idx = folders.findIndex(x => x.id === editingFolderId);
-    if (idx >= 0) folders[idx] = f;
-  } else {
-    const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-    folders.push(await r.json());
+  try {
+    if (editingFolderId) {
+      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      if (!r.ok) throw new Error(await r.text());
+      const f = await r.json();
+      const idx = folders.findIndex(x => x.id === editingFolderId);
+      if (idx >= 0) folders[idx] = f;
+    } else {
+      const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      if (!r.ok) throw new Error(await r.text());
+      folders.push(await r.json());
+    }
+    closeModal('folderModal');
+    render();
+  } catch (e) {
+    alert('Could not save folder: ' + e.message);
   }
-  closeModal('folderModal');
-  render();
 }
 async function deleteFolder(id) {
   if (!confirm('Delete folder? Recipes inside will move to Unorganized.')) return;
