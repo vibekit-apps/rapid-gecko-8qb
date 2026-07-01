@@ -152,7 +152,17 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
     <label>Recipe Name</label>
     <input type="text" id="recipeNameInput" placeholder="e.g. Grandma's Chocolate Cake" maxlength="80">
     <label>Folder</label>
-    <select id="recipeFolderSelect"></select>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <select id="recipeFolderSelect" style="flex:1"></select>
+      <button type="button" class="btn btn-secondary" style="white-space:nowrap;padding:.6rem .75rem;font-size:.8rem" onclick="toggleInlineNewFolder()">+ New</button>
+    </div>
+    <div id="inlineNewFolder" style="display:none;margin-top:.5rem;display:none">
+      <input type="text" id="inlineFolderName" placeholder="Folder name" maxlength="60" style="width:100%">
+      <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
+        <button type="button" class="btn btn-secondary" onclick="cancelInlineFolder()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="createInlineFolder()">Create</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('recipeModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveRecipe()">Save</button>
@@ -419,7 +429,31 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.q
 document.getElementById('folderNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveFolder(); });
 document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
 document.getElementById('renameInput').addEventListener('keydown', e => { if (e.key==='Enter') doRename(); });
+document.getElementById('inlineFolderName').addEventListener('keydown', e => { if (e.key==='Enter') createInlineFolder(); });
 
+function toggleInlineNewFolder() {
+  const box = document.getElementById('inlineNewFolder');
+  const showing = box.style.display !== 'none';
+  box.style.display = showing ? 'none' : 'block';
+  if (!showing) { document.getElementById('inlineFolderName').value = ''; document.getElementById('inlineFolderName').focus(); }
+}
+function cancelInlineFolder() {
+  document.getElementById('inlineNewFolder').style.display = 'none';
+  document.getElementById('inlineFolderName').value = '';
+}
+async function createInlineFolder() {
+  const name = document.getElementById('inlineFolderName').value.trim();
+  if (!name) return;
+  const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+  const f = await r.json();
+  folders.push(f);
+  const sel = document.getElementById('recipeFolderSelect');
+  const opt = document.createElement('option');
+  opt.value = f.id; opt.textContent = f.name;
+  sel.appendChild(opt);
+  sel.value = f.id;
+  cancelInlineFolder();
+}
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 init();
