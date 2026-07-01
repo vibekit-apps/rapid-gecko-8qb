@@ -1,48 +1,428 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>rapid-gecko-8qb</title>
-<link rel="icon" href="https://vibekit.bot/public/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="https://vibekit.bot/public/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="https://vibekit.bot/public/favicon-16.png"><link rel="apple-touch-icon" href="https://vibekit.bot/public/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap" rel="stylesheet">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recipe Box</title>
+<link rel="icon" href="https://vibekit.bot/public/favicon.ico" sizes="any">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0a0f;--fg:#fff;--mute:#9ca3af;--card:#13131a;--border:#27272f;--accent:#a78bfa}
-body{min-height:100vh;background:radial-gradient(ellipse at top,#1a0b2e 0%,var(--bg) 50%) fixed;color:var(--fg);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
-.wrap{max-width:880px;margin:0 auto;padding:3rem 1.5rem}
-.topbar{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:2.5rem}
-.wordmark{display:inline-flex;align-items:center;gap:10px;color:var(--fg);font-family:'Permanent Marker',cursive;font-weight:400;font-size:19px;text-decoration:none}
-.wordmark img{width:32px;height:32px;border-radius:7px;display:block}
-.status{display:inline-flex;align-items:center;gap:.5rem;margin-left:auto;padding:.375rem .75rem;background:var(--card);border:1px solid var(--border);border-radius:999px;font-size:.75rem;color:var(--mute)}
-.status .dot{width:6px;height:6px;background:#22c55e;border-radius:50%;box-shadow:0 0 8px #22c55e}
-h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;letter-spacing:-.03em;margin-bottom:1rem;color:var(--fg);word-break:break-word}
-.lead{font-size:1.0625rem;color:var(--mute);margin-bottom:2.5rem;max-width:560px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-bottom:2rem}
-.card{padding:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:12px}
-.card h3{font-size:.9375rem;font-weight:600;color:var(--fg);margin-bottom:.375rem;letter-spacing:-.005em}
-.card p{font-size:.875rem;color:var(--mute);line-height:1.55}
-.card .icon{width:36px;height:36px;border-radius:9px;background:rgba(167,139,250,.1);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;color:var(--accent)}
-.card .icon svg{width:18px;height:18px}
-.cta{display:inline-flex;align-items:center;gap:.5rem;padding:.875rem 1.375rem;background:var(--accent);color:#0a0a0f;border-radius:9px;font-size:.9375rem;font-weight:600;text-decoration:none;transition:transform .15s ease,background .15s ease;min-height:44px}
-.cta:hover{transform:translateY(-1px);background:#c4b5fd}
-footer{margin-top:3rem;padding-top:2rem;border-top:1px solid var(--border);font-size:.75rem;color:var(--mute);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
-footer a{color:var(--mute);text-decoration:none}
-footer a:hover{color:var(--fg)}
-@media (max-width:480px){.wrap{padding:2rem 1.25rem}.topbar{margin-bottom:2rem}.cta{width:100%;justify-content:center}}
-</style></head>
+:root{
+  --bg:#faf8f5;--fg:#1a1a1a;--mute:#6b7280;--card:#fff;
+  --border:#e5e1da;--accent:#c0392b;--accent2:#e8d5b7;--radius:12px;
+}
+body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.main{flex:1;padding:2rem 1.5rem;min-width:0}
+
+/* Sidebar */
+.sidebar-header{padding:1.25rem 1rem .75rem;border-bottom:1px solid var(--border)}
+.sidebar-header h2{font-size:1.1rem;font-weight:700;letter-spacing:-.02em}
+.sidebar-header span{font-size:.75rem;color:var(--mute)}
+.folder-list{flex:1;overflow-y:auto;padding:.5rem 0}
+.folder-item{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;cursor:pointer;border-radius:0;transition:background .12s;font-size:.875rem;color:var(--fg)}
+.folder-item:hover{background:#f5f1eb}
+.folder-item.active{background:var(--accent2);font-weight:600}
+.folder-item .folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-item .count{font-size:.7rem;color:var(--mute);background:#f0ece4;padding:.1rem .4rem;border-radius:99px}
+.folder-item .folder-actions{display:none;gap:.25rem}
+.folder-item:hover .folder-actions{display:flex}
+.folder-actions button{background:none;border:none;cursor:pointer;padding:3px 5px;border-radius:5px;color:var(--mute);font-size:.75rem}
+.folder-actions button:hover{background:#e5e1da;color:var(--fg)}
+.new-folder-btn{margin:.75rem 1rem;display:flex;align-items:center;gap:.5rem;padding:.6rem .875rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.8125rem;font-weight:600;cursor:pointer;width:calc(100% - 2rem)}
+.new-folder-btn:hover{background:#a93226}
+
+/* Main header */
+.main-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.main-header h1{font-size:1.4rem;font-weight:700;flex:1}
+.upload-btn{display:inline-flex;align-items:center;gap:.5rem;padding:.65rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.875rem;font-weight:600;cursor:pointer}
+.upload-btn:hover{background:#a93226}
+.upload-btn svg{width:16px;height:16px}
+
+/* Grid */
+.recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
+.recipe-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative}
+.recipe-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-2px)}
+.recipe-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#f0ece4}
+.recipe-card .card-body{padding:.75rem}
+.recipe-card .card-name{font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recipe-card .card-date{font-size:.7rem;color:var(--mute);margin-top:.2rem}
+.recipe-card .card-menu{position:absolute;top:.5rem;right:.5rem;opacity:0;transition:opacity .15s}
+.recipe-card:hover .card-menu{opacity:1}
+.card-menu button{background:rgba(255,255,255,.9);border:none;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:.75rem;color:var(--fg)}
+.card-menu button:hover{background:#fff}
+
+/* Empty */
+.empty{text-align:center;padding:4rem 2rem;color:var(--mute)}
+.empty svg{width:48px;height:48px;margin:0 auto 1rem;opacity:.35}
+.empty p{font-size:.9375rem}
+
+/* Modals */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem}
+.overlay.hidden{display:none}
+.modal{background:#fff;border-radius:16px;padding:1.75rem;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1.25rem}
+.modal label{display:block;font-size:.8125rem;font-weight:600;color:var(--mute);margin-bottom:.375rem;margin-top:.875rem}
+.modal label:first-of-type{margin-top:0}
+.modal input,.modal select{width:100%;padding:.625rem .875rem;border:1px solid var(--border);border-radius:8px;font-size:.9375rem;background:#faf8f5;color:var(--fg)}
+.modal input:focus,.modal select:focus{outline:2px solid var(--accent);border-color:transparent}
+.upload-area{border:2px dashed var(--border);border-radius:10px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;background:#faf8f5;margin-top:.25rem}
+.upload-area:hover,.upload-area.drag{border-color:var(--accent);background:#fdf6f0}
+.upload-area img{max-height:180px;max-width:100%;border-radius:8px;margin-top:.75rem}
+.upload-area p{font-size:.8125rem;color:var(--mute)}
+.modal-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
+.btn{padding:.6rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;border:none}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#a93226}
+.btn-secondary{background:#f0ece4;color:var(--fg)}
+.btn-secondary:hover{background:#e5e1da}
+.btn-danger{background:#fee2e2;color:#991b1b}
+.btn-danger:hover{background:#fecaca}
+
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
+.lightbox.hidden{display:none}
+.lightbox img{max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain}
+.lightbox-close{position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.5rem;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.lightbox-close:hover{background:rgba(255,255,255,.3)}
+
+/* Responsive */
+@media(max-width:600px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static;border-right:none;border-bottom:1px solid var(--border)}
+  .folder-list{max-height:200px}
+  .main{padding:1.25rem 1rem}
+}
+</style>
+</head>
 <body>
-<div class="wrap">
-<div class="topbar"><a href="https://vibekit.bot" class="wordmark"><img src="https://vibekit.bot/public/Group2.png" alt="VibeKit logo"> VibeKit</a><div class="status"><span class="dot"></span>Your app is live</div></div>
-<h1>rapid-gecko-8qb</h1>
-<p class="lead">This is your starter. Open the chat with your AI agent and tell it what to build — the page updates as you go.</p>
-<div class="cards">
-<div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><h3>Chat to customize</h3><p>Describe what you want. Your agent edits the code and redeploys automatically.</p></div>
-<div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3>Iterate fast</h3><p>Every change you ask for ships in seconds, with full source on GitHub.</p></div>
-<div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><h3>Yours to keep</h3><p>The code is yours. Connect a custom domain or fork it whenever you like.</p></div>
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2>Recipe Box</h2>
+      <span>Your recipe collection</span>
+    </div>
+    <div class="folder-list" id="folderList"></div>
+    <button class="new-folder-btn" onclick="openNewFolder()">+ New Folder</button>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="main-header">
+      <h1 id="mainTitle">All Recipes</h1>
+      <button class="upload-btn" onclick="openAddRecipe()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Photo
+      </button>
+    </div>
+    <div class="recipe-grid" id="recipeGrid"></div>
+  </main>
 </div>
-<a class="cta" href="https://app.vibekit.bot/app/rapid-gecko-8qb">Open chat <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
-<footer>
-<span>Built with VibeKit</span>
-<a href="https://vibekit.bot">vibekit.bot</a>
-</footer>
+
+<!-- New/Edit Folder Modal -->
+<div class="overlay hidden" id="folderModal">
+  <div class="modal">
+    <h3 id="folderModalTitle">New Folder</h3>
+    <label>Folder Name</label>
+    <input type="text" id="folderNameInput" placeholder="e.g. Desserts" maxlength="60">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFolder()">Save</button>
+    </div>
+  </div>
 </div>
-</body></html>
+
+<!-- Add Recipe Modal -->
+<div class="overlay hidden" id="recipeModal">
+  <div class="modal">
+    <h3>Add Recipe Photo</h3>
+    <label>Photo</label>
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()"
+         ondragover="e=>{e.preventDefault();this.classList.add('drag')}"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="handleDrop(event)">
+      <p>Tap to take a photo or choose from library</p>
+      <img id="photoPreview" style="display:none">
+    </div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this.files[0])">
+    <label>Recipe Name</label>
+    <input type="text" id="recipeNameInput" placeholder="e.g. Grandma's Chocolate Cake" maxlength="80">
+    <label>Folder</label>
+    <select id="recipeFolderSelect"></select>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('recipeModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRecipe()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move Recipe Modal -->
+<div class="overlay hidden" id="moveModal">
+  <div class="modal">
+    <h3>Move Recipe</h3>
+    <label>Move to Folder</label>
+    <select id="moveFolderSelect"></select>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('moveModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="moveRecipe()">Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Recipe Modal -->
+<div class="overlay hidden" id="renameModal">
+  <div class="modal">
+    <h3>Rename Recipe</h3>
+    <label>Name</label>
+    <input type="text" id="renameInput" maxlength="80">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="doRename()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox hidden" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
+  <img id="lightboxImg">
+</div>
+
+<script>
+let folders = [];
+let recipes = [];
+let activeFolderId = 'all'; // 'all' or folder id
+let editingFolderId = null;
+let pendingMoveId = null;
+let pendingRenameId = null;
+let selectedFile = null;
+
+async function init() {
+  [folders, recipes] = await Promise.all([
+    fetch('/api/folders').then(r => r.json()),
+    fetch('/api/recipes').then(r => r.json())
+  ]);
+  render();
+}
+
+function render() {
+  renderSidebar();
+  renderGrid();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('folderList');
+  const allCount = recipes.length;
+  const noneCount = recipes.filter(r => !r.folderId).length;
+
+  let html = `
+    <div class="folder-item ${activeFolderId==='all'?'active':''}" onclick="setFolder('all')">
+      <span class="folder-name">All Recipes</span>
+      <span class="count">${allCount}</span>
+    </div>
+    <div class="folder-item ${activeFolderId==='none'?'active':''}" onclick="setFolder('none')">
+      <span class="folder-name">Unorganized</span>
+      <span class="count">${noneCount}</span>
+    </div>
+  `;
+  folders.forEach(f => {
+    const c = recipes.filter(r => r.folderId === f.id).length;
+    html += `
+      <div class="folder-item ${activeFolderId===f.id?'active':''}" onclick="setFolder('${f.id}')">
+        <span class="folder-name">${esc(f.name)}</span>
+        <span class="count">${c}</span>
+        <div class="folder-actions">
+          <button onclick="event.stopPropagation();openEditFolder('${f.id}')" title="Rename">&#9998;</button>
+          <button onclick="event.stopPropagation();deleteFolder('${f.id}')" title="Delete">&#x2715;</button>
+        </div>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+function renderGrid() {
+  const grid = document.getElementById('recipeGrid');
+  const title = document.getElementById('mainTitle');
+  let visible;
+  if (activeFolderId === 'all') {
+    visible = recipes; title.textContent = 'All Recipes';
+  } else if (activeFolderId === 'none') {
+    visible = recipes.filter(r => !r.folderId); title.textContent = 'Unorganized';
+  } else {
+    const f = folders.find(x => x.id === activeFolderId);
+    visible = recipes.filter(r => r.folderId === activeFolderId);
+    title.textContent = f ? f.name : 'Folder';
+  }
+
+  if (!visible.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+      <p>No recipes yet. Tap <strong>Add Photo</strong> to get started.</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map(r => `
+    <div class="recipe-card" onclick="openLightbox('/uploads/${r.filename}')">
+      <img src="/uploads/${r.filename}" alt="${esc(r.name)}" loading="lazy">
+      <div class="card-menu">
+        <button onclick="event.stopPropagation();openRename('${r.id}','${esc(r.name)}')" title="Rename">&#9998;</button>
+        <button onclick="event.stopPropagation();openMove('${r.id}')" title="Move">&#10137;</button>
+        <button onclick="event.stopPropagation();deleteRecipe('${r.id}')" title="Delete">&#x2715;</button>
+      </div>
+      <div class="card-body">
+        <div class="card-name">${esc(r.name)}</div>
+        <div class="card-date">${new Date(r.createdAt).toLocaleDateString()}</div>
+      </div>
+    </div>`).join('');
+}
+
+function setFolder(id) { activeFolderId = id; render(); }
+
+// Folder CRUD
+function openNewFolder() {
+  editingFolderId = null;
+  document.getElementById('folderModalTitle').textContent = 'New Folder';
+  document.getElementById('folderNameInput').value = '';
+  openModal('folderModal');
+}
+function openEditFolder(id) {
+  editingFolderId = id;
+  const f = folders.find(x => x.id === id);
+  document.getElementById('folderModalTitle').textContent = 'Rename Folder';
+  document.getElementById('folderNameInput').value = f.name;
+  openModal('folderModal');
+}
+async function saveFolder() {
+  const name = document.getElementById('folderNameInput').value.trim();
+  if (!name) return;
+  if (editingFolderId) {
+    const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    const f = await r.json();
+    const idx = folders.findIndex(x => x.id === editingFolderId);
+    if (idx >= 0) folders[idx] = f;
+  } else {
+    const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    folders.push(await r.json());
+  }
+  closeModal('folderModal');
+  render();
+}
+async function deleteFolder(id) {
+  if (!confirm('Delete folder? Recipes inside will move to Unorganized.')) return;
+  await fetch(`/api/folders/${id}`, { method:'DELETE' });
+  folders = folders.filter(x => x.id !== id);
+  recipes.forEach(r => { if (r.folderId === id) r.folderId = null; });
+  if (activeFolderId === id) activeFolderId = 'all';
+  render();
+}
+
+// Recipe add
+function openAddRecipe() {
+  selectedFile = null;
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('uploadArea').querySelector('p').textContent = 'Tap to take a photo or choose from library';
+  document.getElementById('recipeNameInput').value = '';
+  // Populate folder select
+  const sel = document.getElementById('recipeFolderSelect');
+  sel.innerHTML = '<option value="">Unorganized</option>' + folders.map(f => `<option value="${f.id}" ${activeFolderId===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
+  openModal('recipeModal');
+}
+function handleFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  const prev = document.getElementById('photoPreview');
+  prev.src = URL.createObjectURL(file);
+  prev.style.display = 'block';
+  document.getElementById('uploadArea').querySelector('p').textContent = file.name;
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadArea').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+}
+async function saveRecipe() {
+  if (!selectedFile) { alert('Please choose a photo first.'); return; }
+  const name = document.getElementById('recipeNameInput').value.trim() || 'Untitled Recipe';
+  const folderId = document.getElementById('recipeFolderSelect').value;
+  const fd = new FormData();
+  fd.append('photo', selectedFile);
+  fd.append('name', name);
+  if (folderId) fd.append('folderId', folderId);
+  const r = await fetch('/api/recipes', { method:'POST', body: fd });
+  recipes.push(await r.json());
+  closeModal('recipeModal');
+  render();
+}
+
+// Move
+function openMove(id) {
+  pendingMoveId = id;
+  const sel = document.getElementById('moveFolderSelect');
+  sel.innerHTML = '<option value="">Unorganized</option>' + folders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+  const r = recipes.find(x => x.id === id);
+  if (r && r.folderId) sel.value = r.folderId;
+  openModal('moveModal');
+}
+async function moveRecipe() {
+  const folderId = document.getElementById('moveFolderSelect').value || null;
+  await fetch(`/api/recipes/${pendingMoveId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
+  const r = recipes.find(x => x.id === pendingMoveId);
+  if (r) r.folderId = folderId;
+  closeModal('moveModal');
+  render();
+}
+
+// Rename
+function openRename(id, name) {
+  pendingRenameId = id;
+  document.getElementById('renameInput').value = name;
+  openModal('renameModal');
+}
+async function doRename() {
+  const name = document.getElementById('renameInput').value.trim();
+  if (!name) return;
+  await fetch(`/api/recipes/${pendingRenameId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+  const r = recipes.find(x => x.id === pendingRenameId);
+  if (r) r.name = name;
+  closeModal('renameModal');
+  render();
+}
+
+// Delete recipe
+async function deleteRecipe(id) {
+  if (!confirm('Delete this recipe photo?')) return;
+  await fetch(`/api/recipes/${id}`, { method:'DELETE' });
+  recipes = recipes.filter(x => x.id !== id);
+  render();
+}
+
+// Lightbox
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+
+// Modal helpers
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.add('hidden'); }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.overlay:not(.hidden),.lightbox:not(.hidden)').forEach(m => m.classList.add('hidden')); }});
+
+// Enter key in modals
+document.getElementById('folderNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveFolder(); });
+document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
+document.getElementById('renameInput').addEventListener('keydown', e => { if (e.key==='Enter') doRename(); });
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+init();
+</script>
+</body>
+</html>

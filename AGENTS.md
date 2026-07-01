@@ -1,7 +1,7 @@
 # Agent guide
 
 App: **rapid-gecko-8qb** at https://rapid-gecko-8qb.vibekit.bot
-Repo: template/blank | Port: 4120
+Repo: vibekit-apps/rapid-gecko-8qb | Port: 4120
 
 ## NEVER (these break the product)
 - **NEVER point the user at localhost / `npm start`** — only **https://rapid-gecko-8qb.vibekit.bot**. They have no terminal.
