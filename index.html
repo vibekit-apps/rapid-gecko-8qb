@@ -687,7 +687,7 @@ function openMove(id) {
 async function moveRecipe() {
   const folderId = document.getElementById('moveFolderSelect').value || null;
   try {
-    const response = await fetch(`/api/recipes/${pendingMoveId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
+    const response = await fetch(`/api/recipes/${pendingMoveId}?folderId=${encodeURIComponent(folderId || '')}`, { method:'POST' });
     const updatedRecipe = await readApiResponse(response);
     const r = recipes.find(x => x.id === pendingMoveId);
     if (r) Object.assign(r, updatedRecipe);

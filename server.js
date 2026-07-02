@@ -617,13 +617,18 @@ app.post('/api/recipes', upload.single('photo'), async (req, res) => {
 
 const patchRecipe = (req, res) => {
   try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
     const recipe = getRecipe(req.params.id);
     if (!recipe) return res.status(404).json({ error: 'Not found' });
-    if (req.body.name !== undefined) {
-      run('UPDATE recipes SET name = ? WHERE id = ?', [String(req.body.name), String(req.params.id)]);
+    const name = body.name ?? req.query?.name;
+    const folderId = body.folderId ?? req.query?.folderId;
+    if (name !== undefined) {
+      run('UPDATE recipes SET name = ? WHERE id = ?', [String(name), String(req.params.id)]);
     }
-    if (req.body.folderId !== undefined) {
-      run('UPDATE recipes SET folder_id = ? WHERE id = ?', [req.body.folderId ? String(req.body.folderId) : null, String(req.params.id)]);
+    if (folderId !== undefined) {
+      const nextFolderId = folderId ? String(folderId) : null;
+      if (nextFolderId && !one('SELECT id FROM folders WHERE id = ?', [nextFolderId])) return res.status(400).json({ error: 'Folder not found' });
+      run('UPDATE recipes SET folder_id = ? WHERE id = ?', [nextFolderId, String(req.params.id)]);
     }
     persistDb();
     res.json(getRecipe(req.params.id));
