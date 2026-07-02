@@ -57,19 +57,60 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-app.use(express.json({ limit: '128kb' }));
-app.use((err, req, res, next) => {
-  const requestPath = req.originalUrl || req.url || req.path || '';
-  if (requestPath.startsWith('/api/')) {
-    if (err.type === 'request.aborted' || err.code === 'ECONNABORTED') {
-      if (!res.headersSent) res.status(400).json({ error: 'Request was interrupted. Please try again.' });
-      return;
-    }
-    if (!res.headersSent) res.status(err.status || 400).json({ error: 'Invalid request body' });
+function parseJsonBody(req, res, next) {
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('application/json')) {
+    req.body = req.body || {};
+    next();
     return;
   }
-  next(err);
-});
+
+  let total = 0;
+  let settled = false;
+  const chunks = [];
+  const limit = 128 * 1024;
+
+  function fail(status, message) {
+    if (settled) return;
+    settled = true;
+    if (!res.headersSent) res.status(status).json({ error: message });
+  }
+
+  req.on('aborted', () => {
+    console.warn('Request aborted:', req.method, req.originalUrl || req.url);
+    settled = true;
+  });
+  req.on('error', () => fail(400, 'Request was interrupted. Please try again.'));
+  req.on('data', chunk => {
+    if (settled) return;
+    total += chunk.length;
+    if (total > limit) {
+      fail(413, 'Request body too large');
+      req.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (settled) return;
+    const raw = Buffer.concat(chunks).toString('utf8').trim();
+    if (!raw) {
+      req.body = {};
+      settled = true;
+      next();
+      return;
+    }
+    try {
+      req.body = JSON.parse(raw);
+      settled = true;
+      next();
+    } catch (e) {
+      fail(400, 'Invalid request body');
+    }
+  });
+}
+
+app.use(parseJsonBody);
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
