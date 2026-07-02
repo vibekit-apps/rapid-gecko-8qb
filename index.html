@@ -53,11 +53,20 @@ button{touch-action:manipulation}
 .search-mode-toggle button{min-height:32px;padding:.35rem .7rem;border:none;background:transparent;color:var(--mute);font-size:.75rem;font-weight:700;cursor:pointer}
 .search-mode-toggle button.active{background:var(--sage);color:#243c2c}
 .search-mode-toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.search-box{position:relative}
 .search-input{width:100%;min-height:46px;padding:.72rem .95rem;border:1px solid var(--border);border-radius:9px;background:#fffdf8;color:var(--fg);font-size:.9rem;box-shadow:0 8px 24px rgba(70,55,36,.06)}
+.search-input.has-value{padding-right:2.7rem}
 .search-input:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.clear-search{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:34px;height:34px;border:none;border-radius:8px;background:transparent;color:var(--mute);cursor:pointer;font-size:1.05rem;display:none}
+.clear-search.visible{display:block}
+.clear-search:hover{background:#efe7dc;color:var(--fg)}
 .upload-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:46px;padding:.72rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.9rem;font-weight:750;cursor:pointer;white-space:nowrap;box-shadow:0 12px 24px rgba(182,66,50,.22)}
 .upload-btn:hover{background:var(--accent-dark)}
 .upload-btn svg{width:16px;height:16px}
+.summary-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1.2rem}
+.summary-card{background:rgba(255,253,248,.76);border:1px solid var(--border);border-radius:10px;padding:.85rem .95rem;box-shadow:0 8px 24px rgba(70,55,36,.05)}
+.summary-card strong{display:block;font-size:1.25rem;line-height:1;color:var(--fg)}
+.summary-card span{display:block;margin-top:.25rem;font-size:.75rem;color:var(--soft);font-weight:700;text-transform:uppercase}
 
 /* Grid */
 .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1.05rem}
@@ -78,6 +87,9 @@ button{touch-action:manipulation}
 .empty{text-align:center;padding:4.2rem 2rem;color:var(--mute);background:rgba(255,253,248,.62);border:1px dashed #d7ccbe;border-radius:14px}
 .empty svg{width:48px;height:48px;margin:0 auto 1rem;opacity:.35}
 .empty p{font-size:.9375rem}
+.empty h2{font-size:1.15rem;color:var(--fg);margin-bottom:.35rem}
+.empty .empty-actions{display:flex;justify-content:center;gap:.6rem;flex-wrap:wrap;margin-top:1.1rem}
+.empty .btn{display:inline-flex;align-items:center;justify-content:center}
 
 /* Modals */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem}
@@ -92,6 +104,7 @@ button{touch-action:manipulation}
 .upload-area:hover,.upload-area.drag{border-color:var(--accent);background:#fff4ee}
 .upload-area img{max-height:180px;max-width:100%;border-radius:8px;margin-top:.75rem}
 .upload-area p{font-size:.8125rem;color:var(--mute)}
+.upload-mark{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border);color:var(--accent);font-weight:800;font-size:1.45rem;margin-bottom:.7rem;box-shadow:0 8px 18px rgba(70,55,36,.08)}
 .modal-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
 .btn{min-height:44px;padding:.6rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;border:none}
 .btn-primary{background:var(--accent);color:#fff}
@@ -121,6 +134,7 @@ button{touch-action:manipulation}
   .main-header{grid-template-columns:1fr auto}
   .main-header h1{grid-column:1/-1}
   .search-tools{grid-column:1/2}
+  .summary-strip{grid-template-columns:1fr}
 }
 @media(max-width:700px){
   .app{flex-direction:column}
@@ -139,6 +153,8 @@ button{touch-action:manipulation}
   .main-header h1{grid-column:auto;font-size:1.25rem;white-space:normal}
   .search-tools{grid-column:auto}
   .upload-btn{width:100%}
+  .summary-strip{gap:.55rem;margin-bottom:.85rem}
+  .summary-card{padding:.72rem .85rem}
   .recipe-grid{grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:.75rem}
   .recipe-card:hover{transform:none}
   .recipe-card .card-body{padding:.65rem}
@@ -183,13 +199,17 @@ button{touch-action:manipulation}
           <button type="button" class="active" id="recipeSearchModeButton" aria-pressed="true" onclick="setSearchMode('recipe')">Recipe</button>
           <button type="button" id="ingredientSearchModeButton" aria-pressed="false" onclick="setSearchMode('ingredients')">Ingredients</button>
         </div>
-        <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search recipes" autocomplete="off">
+        <div class="search-box">
+          <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search recipes" autocomplete="off">
+          <button type="button" class="clear-search" id="clearSearchButton" aria-label="Clear search" onclick="clearSearch()">&#x2715;</button>
+        </div>
       </div>
       <button class="upload-btn" onclick="openAddRecipe()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Photo
       </button>
     </div>
+    <section class="summary-strip" id="summaryStrip" aria-label="Recipe summary"></section>
     <div class="recipe-grid" id="recipeGrid"></div>
   </main>
 </div>
@@ -216,6 +236,7 @@ button{touch-action:manipulation}
          ondragover="handleDragOver(event)"
          ondragleave="this.classList.remove('drag')"
          ondrop="handleDrop(event)">
+      <div class="upload-mark">+</div>
       <p>Tap to take a photo or choose from library</p>
       <img id="photoPreview" style="display:none">
     </div>
@@ -318,6 +339,7 @@ function setSearchMode(mode) {
   recipeButton.setAttribute('aria-pressed', String(searchMode === 'recipe'));
   ingredientButton.setAttribute('aria-pressed', String(searchMode === 'ingredients'));
   searchInput.placeholder = searchMode === 'ingredients' ? 'Search ingredients' : 'Search recipes';
+  renderSummary();
   renderGrid();
 }
 
@@ -349,7 +371,36 @@ async function readApiResponse(response) {
 
 function render() {
   renderSidebar();
+  renderSummary();
   renderGrid();
+}
+
+function getVisibleRecipes() {
+  const searchTerms = getSearchTerms();
+  if (searchTerms.length) {
+    return recipes.filter(r => {
+      const searchable = getRecipeSearchText(r);
+      return searchTerms.every(term => searchable.includes(term));
+    });
+  }
+  if (activeFolderId === 'none') return recipes.filter(r => !r.folderId);
+  if (activeFolderId !== 'all') return recipes.filter(r => r.folderId === activeFolderId);
+  return recipes;
+}
+
+function renderSummary() {
+  const strip = document.getElementById('summaryStrip');
+  const visibleCount = getVisibleRecipes().length;
+  const folderCount = folders.length;
+  const scannedCount = recipes.filter(r => Array.isArray(r.ingredients) && r.ingredients.length).length;
+  strip.innerHTML = `
+    <div class="summary-card"><strong>${visibleCount}</strong><span>Showing</span></div>
+    <div class="summary-card"><strong>${recipes.length}</strong><span>Total recipes</span></div>
+    <div class="summary-card"><strong>${folderCount}</strong><span>Folders</span></div>
+  `;
+  if (recipes.length && scannedCount < recipes.length) {
+    strip.innerHTML += `<div class="summary-card"><strong>${scannedCount}</strong><span>Text scanned</span></div>`;
+  }
 }
 
 function renderSidebar() {
@@ -393,13 +444,14 @@ function renderSidebar() {
 function renderGrid() {
   const grid = document.getElementById('recipeGrid');
   const title = document.getElementById('mainTitle');
+  const searchInput = document.getElementById('recipeSearchInput');
+  const clearButton = document.getElementById('clearSearchButton');
   const searchTerms = getSearchTerms();
   let visible;
+  searchInput.classList.toggle('has-value', Boolean(searchQuery.trim()));
+  clearButton.classList.toggle('visible', Boolean(searchQuery.trim()));
   if (searchTerms.length) {
-    visible = recipes.filter(r => {
-      const searchable = getRecipeSearchText(r);
-      return searchTerms.every(term => searchable.includes(term));
-    });
+    visible = getVisibleRecipes();
     title.textContent = 'Search Results';
   } else if (activeFolderId === 'all') {
     visible = recipes; title.textContent = 'All Recipes';
@@ -412,12 +464,18 @@ function renderGrid() {
   }
 
   if (!visible.length) {
+    const emptyTitle = searchTerms.length ? 'No Matches' : 'Start Your Recipe Box';
     const emptyText = searchTerms.length
-      ? 'No recipes match your search.'
-      : 'No recipes yet. Tap <strong>Add Photo</strong> to get started.';
+      ? 'Try a broader recipe name or switch between recipe and ingredient search.'
+      : 'Save a photo, keep it in a folder, and the app will pull out recipe text when it can.';
+    const actions = searchTerms.length
+      ? `<button class="btn btn-secondary" onclick="clearSearch()">Clear Search</button>`
+      : `<button class="btn btn-primary" onclick="openAddRecipe()">Add Photo</button><button class="btn btn-secondary" onclick="openNewFolder()">New Folder</button>`;
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+      <h2>${emptyTitle}</h2>
       <p>${emptyText}</p>
+      <div class="empty-actions">${actions}</div>
     </div>`;
     return;
   }
@@ -440,6 +498,12 @@ function renderGrid() {
 }
 
 function setFolder(id) { activeFolderId = id; render(); }
+
+function clearSearch() {
+  searchQuery = '';
+  document.getElementById('recipeSearchInput').value = '';
+  render();
+}
 
 // Folder CRUD
 function openNewFolder() {
@@ -658,6 +722,7 @@ document.getElementById('folderNameInput').addEventListener('keydown', e => { if
 document.getElementById('folderSaveButton').addEventListener('click', saveFolder);
 document.getElementById('recipeSearchInput').addEventListener('input', e => {
   searchQuery = e.target.value;
+  renderSummary();
   renderGrid();
 });
 document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
