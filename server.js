@@ -80,7 +80,7 @@ app.post('/api/folders', (req, res) => {
 
 const patchFolder = (req, res) => {
   try {
-    const { name } = req.body;
+    const name = req.body?.name ?? req.query?.name;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
     const d = loadData();
     const f = d.folders.find(x => x.id === req.params.id);
