@@ -19,6 +19,9 @@
 - Folder rename UI sends the new name in the query string with a bodyless `POST` to avoid mobile/proxy aborted JSON-body requests causing 502s.
 - Express raw-body was replaced with a small JSON parser so aborted API requests log cleanly instead of dumping `BadRequestError: request aborted` stacks.
 
+## Preferences
+- Always list folders in alphabetical order when presenting directory listings to the user.
+
 ## How to Use Memory
 - Update this file with important decisions, architecture choices, and lessons
 - Daily logs go in `memory/2026-07-01.md` (create memory/ dir if needed)

@@ -1,10 +1,10 @@
 # STATUS.md — Live Infrastructure (auto-updated)
-_Last updated: 2026-07-02T15:53:24.606Z_
+_Last updated: 2026-07-02T22:41:02.627Z_
 
 ## Container
 - **Name**: vk-familyrecipies
 - **Status**: exited
-- **Started**: 2026-07-01T17:42:36.336213359Z
+- **Started**: 2026-07-02T16:52:18.300024718Z
 - **Resources**: 0.00% CPU | 0B / 0B | 0B / 0B net
 - **Memory Limit**: 512MB
 - **Port**: 4120
@@ -14,7 +14,7 @@ _Last updated: 2026-07-02T15:53:24.606Z_
 - **Subdomain**: familyrecipies.vibekit.bot
 - **DB Status**: running
 - **Health Failures**: 0
-- **Last Healthy**: 2026-07-02T15:52:17.484+00:00
+- **Last Healthy**: 2026-07-02T22:40:56.777+00:00
 
 
 ## Host
@@ -25,12 +25,13 @@ _Last updated: 2026-07-02T15:53:24.606Z_
 > rapid-gecko-8qb@1.0.0 start
 > node server.js
 
+Write test OK: /app/data.json
 Recipe box ready on port 4120
 npm error path /app
 npm error command failed
 npm error signal SIGTERM
 npm error command sh -c node server.js
-npm error A complete log of this run can be found in: /home/appuser/.npm/_logs/2026-07-01T17_42_36_390Z-debug-0.log
+npm error A complete log of this run can be found in: /home/appuser/.npm/_logs/2026-07-02T16_52_18_544Z-debug-0.log
 ```
 
 ## Recent Events
