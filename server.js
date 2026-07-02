@@ -94,6 +94,7 @@ function rowToFolder(row) {
   return {
     id: String(row.id),
     name: row.name,
+    parentId: row.parent_id ? String(row.parent_id) : null,
     createdAt: row.created_at || null
   };
 }
@@ -291,9 +292,10 @@ function migrateJsonSeed() {
   run('BEGIN TRANSACTION');
   try {
     for (const folder of seed.folders) {
-      run('INSERT OR IGNORE INTO folders (id, name, created_at) VALUES (?, ?, ?)', [
+      run('INSERT OR IGNORE INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)', [
         String(folder.id || Date.now()),
         String(folder.name || 'Folder'),
+        folder.parentId ? String(folder.parentId) : null,
         folder.createdAt || new Date().toISOString()
       ]);
     }
@@ -402,8 +404,13 @@ async function initDatabase() {
   run(`CREATE TABLE IF NOT EXISTS folders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    parent_id TEXT,
     created_at TEXT NOT NULL
   )`);
+  const folderColumns = all('PRAGMA table_info(folders)').map(col => col.name);
+  if (!folderColumns.includes('parent_id')) {
+    run('ALTER TABLE folders ADD COLUMN parent_id TEXT');
+  }
   run(`CREATE TABLE IF NOT EXISTS recipes (
     id TEXT PRIMARY KEY,
     folder_id TEXT,
@@ -422,6 +429,7 @@ async function initDatabase() {
     value TEXT NOT NULL
   )`);
   run('CREATE INDEX IF NOT EXISTS idx_recipes_folder ON recipes(folder_id)');
+  run('CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id)');
   migrateJsonSeed();
   persistDb();
 }
@@ -508,22 +516,46 @@ app.post('/api/folders', (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const name = body.name ?? req.query?.name;
+    const parentId = body.parentId ?? req.query?.parentId ?? null;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
-    const folder = { id: Date.now().toString(), name: String(name).trim(), createdAt: new Date().toISOString() };
-    run('INSERT INTO folders (id, name, created_at) VALUES (?, ?, ?)', [folder.id, folder.name, folder.createdAt]);
+    if (parentId && !one('SELECT id FROM folders WHERE id = ?', [String(parentId)])) return res.status(400).json({ error: 'Parent folder not found' });
+    const folder = {
+      id: Date.now().toString(),
+      name: String(name).trim(),
+      parentId: parentId ? String(parentId) : null,
+      createdAt: new Date().toISOString()
+    };
+    run('INSERT INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)', [folder.id, folder.name, folder.parentId, folder.createdAt]);
     persistDb();
     res.json(folder);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+function wouldCreateFolderCycle(folderId, parentId) {
+  let currentId = parentId ? String(parentId) : null;
+  const seen = new Set();
+  while (currentId) {
+    if (currentId === String(folderId)) return true;
+    if (seen.has(currentId)) return true;
+    seen.add(currentId);
+    const parent = one('SELECT parent_id FROM folders WHERE id = ?', [currentId]);
+    currentId = parent?.parent_id ? String(parent.parent_id) : null;
+  }
+  return false;
+}
+
 const updateFolder = (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const name = body.name ?? req.query?.name;
+    const parentId = body.parentId ?? req.query?.parentId;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
     const folder = one('SELECT * FROM folders WHERE id = ?', [String(req.params.id)]);
     if (!folder) return res.status(404).json({ error: 'Not found' });
-    run('UPDATE folders SET name = ? WHERE id = ?', [String(name).trim(), String(req.params.id)]);
+    const nextParentId = parentId === undefined ? (folder.parent_id || null) : (parentId ? String(parentId) : null);
+    if (nextParentId && !one('SELECT id FROM folders WHERE id = ?', [nextParentId])) return res.status(400).json({ error: 'Parent folder not found' });
+    if (wouldCreateFolderCycle(req.params.id, nextParentId)) return res.status(400).json({ error: 'A folder cannot be inside itself' });
+    run('UPDATE folders SET name = ?, parent_id = ? WHERE id = ?', [String(name).trim(), nextParentId, String(req.params.id)]);
     persistDb();
     res.json(rowToFolder(one('SELECT * FROM folders WHERE id = ?', [String(req.params.id)])));
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -534,7 +566,9 @@ app.put('/api/folders/:id', updateFolder);
 
 app.delete('/api/folders/:id', (req, res) => {
   try {
+    const folder = one('SELECT * FROM folders WHERE id = ?', [String(req.params.id)]);
     run('UPDATE recipes SET folder_id = NULL WHERE folder_id = ?', [String(req.params.id)]);
+    run('UPDATE folders SET parent_id = ? WHERE parent_id = ?', [folder?.parent_id || null, String(req.params.id)]);
     run('DELETE FROM folders WHERE id = ?', [String(req.params.id)]);
     persistDb();
     res.json({ ok: true });
