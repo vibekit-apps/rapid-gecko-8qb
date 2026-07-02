@@ -14,6 +14,7 @@
 ## Decisions
 - API endpoints should return JSON errors for `/api/*` routes so the UI never dumps HTML into user-facing alerts.
 - Use `POST` for folder and recipe update actions. `PATCH` is unreliable behind the app proxy and causes save regressions.
+- Folder rename saves are supported over POST, PATCH, and PUT; the server binds to `0.0.0.0` and writes `data.json` atomically to avoid proxy-facing failures during saves.
 
 ## How to Use Memory
 - Update this file with important decisions, architecture choices, and lessons

@@ -29,11 +29,24 @@ try {
 // Load/save helpers
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) return { folders: [], recipes: [] };
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
-  catch { return { folders: [], recipes: [] }; }
+  try {
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    return {
+      folders: Array.isArray(data.folders) ? data.folders : [],
+      recipes: Array.isArray(data.recipes) ? data.recipes : []
+    };
+  }
+  catch (e) {
+    console.error('loadData error:', e.message);
+    return { folders: [], recipes: [] };
+  }
 }
 function saveData(d) {
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
+  try {
+    const tmp = DATA_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+    fs.renameSync(tmp, DATA_FILE);
+  }
   catch (e) { console.error('saveData error:', e.message); throw e; }
 }
 
@@ -99,6 +112,7 @@ const updateFolder = (req, res) => {
 };
 app.post('/api/folders/:id', updateFolder);
 app.patch('/api/folders/:id', updateFolder);
+app.put('/api/folders/:id', updateFolder);
 
 app.delete('/api/folders/:id', (req, res) => {
   try {
@@ -174,4 +188,4 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, () => console.log('Recipe box ready on port ' + PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('Recipe box ready on port ' + PORT));
