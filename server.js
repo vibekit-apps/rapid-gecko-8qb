@@ -45,6 +45,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 app.use(express.json());
+app.use((err, req, res, next) => {
+  if (req.path && req.path.startsWith('/api/')) {
+    res.status(err.status || 400).json({ error: 'Invalid request body' });
+    return;
+  }
+  next(err);
+});
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
