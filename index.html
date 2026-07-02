@@ -63,11 +63,6 @@ button{touch-action:manipulation}
 .upload-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:46px;padding:.72rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.9rem;font-weight:750;cursor:pointer;white-space:nowrap;box-shadow:0 12px 24px rgba(182,66,50,.22)}
 .upload-btn:hover{background:var(--accent-dark)}
 .upload-btn svg{width:16px;height:16px}
-.summary-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1.2rem}
-.summary-card{background:rgba(255,253,248,.76);border:1px solid var(--border);border-radius:10px;padding:.85rem .95rem;box-shadow:0 8px 24px rgba(70,55,36,.05)}
-.summary-card strong{display:block;font-size:1.25rem;line-height:1;color:var(--fg)}
-.summary-card span{display:block;margin-top:.25rem;font-size:.75rem;color:var(--soft);font-weight:700;text-transform:uppercase}
-
 /* Grid */
 .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1.05rem}
 .recipe-card{background:var(--card);border:1px solid rgba(222,214,202,.92);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .16s,transform .16s,border-color .16s;position:relative;box-shadow:0 8px 22px rgba(70,55,36,.07)}
@@ -134,7 +129,6 @@ button{touch-action:manipulation}
   .main-header{grid-template-columns:1fr auto}
   .main-header h1{grid-column:1/-1}
   .search-tools{grid-column:1/2}
-  .summary-strip{grid-template-columns:1fr}
 }
 @media(max-width:700px){
   .app{flex-direction:column}
@@ -153,8 +147,6 @@ button{touch-action:manipulation}
   .main-header h1{grid-column:auto;font-size:1.25rem;white-space:normal}
   .search-tools{grid-column:auto}
   .upload-btn{width:100%}
-  .summary-strip{gap:.55rem;margin-bottom:.85rem}
-  .summary-card{padding:.72rem .85rem}
   .recipe-grid{grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:.75rem}
   .recipe-card:hover{transform:none}
   .recipe-card .card-body{padding:.65rem}
@@ -209,7 +201,6 @@ button{touch-action:manipulation}
         Add Photo
       </button>
     </div>
-    <section class="summary-strip" id="summaryStrip" aria-label="Recipe summary"></section>
     <div class="recipe-grid" id="recipeGrid"></div>
   </main>
 </div>
@@ -339,7 +330,6 @@ function setSearchMode(mode) {
   recipeButton.setAttribute('aria-pressed', String(searchMode === 'recipe'));
   ingredientButton.setAttribute('aria-pressed', String(searchMode === 'ingredients'));
   searchInput.placeholder = searchMode === 'ingredients' ? 'Search ingredients' : 'Search recipes';
-  renderSummary();
   renderGrid();
 }
 
@@ -371,7 +361,6 @@ async function readApiResponse(response) {
 
 function render() {
   renderSidebar();
-  renderSummary();
   renderGrid();
 }
 
@@ -386,21 +375,6 @@ function getVisibleRecipes() {
   if (activeFolderId === 'none') return recipes.filter(r => !r.folderId);
   if (activeFolderId !== 'all') return recipes.filter(r => r.folderId === activeFolderId);
   return recipes;
-}
-
-function renderSummary() {
-  const strip = document.getElementById('summaryStrip');
-  const visibleCount = getVisibleRecipes().length;
-  const folderCount = folders.length;
-  const scannedCount = recipes.filter(r => Array.isArray(r.ingredients) && r.ingredients.length).length;
-  strip.innerHTML = `
-    <div class="summary-card"><strong>${visibleCount}</strong><span>Showing</span></div>
-    <div class="summary-card"><strong>${recipes.length}</strong><span>Total recipes</span></div>
-    <div class="summary-card"><strong>${folderCount}</strong><span>Folders</span></div>
-  `;
-  if (recipes.length && scannedCount < recipes.length) {
-    strip.innerHTML += `<div class="summary-card"><strong>${scannedCount}</strong><span>Text scanned</span></div>`;
-  }
 }
 
 function renderSidebar() {
@@ -722,7 +696,6 @@ document.getElementById('folderNameInput').addEventListener('keydown', e => { if
 document.getElementById('folderSaveButton').addEventListener('click', saveFolder);
 document.getElementById('recipeSearchInput').addEventListener('input', e => {
   searchQuery = e.target.value;
-  renderSummary();
   renderGrid();
 });
 document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
