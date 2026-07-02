@@ -56,6 +56,18 @@ function saveData(d) {
   }
 }
 
+function compareFolders(a, b) {
+  const byName = String(a?.name || '').localeCompare(String(b?.name || ''), undefined, {
+    sensitivity: 'base',
+    numeric: true
+  });
+  return byName || String(a?.id || '').localeCompare(String(b?.id || ''));
+}
+
+function sortFolders(folders) {
+  return [...folders].sort(compareFolders);
+}
+
 // Multer — store in uploads/
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -135,7 +147,7 @@ app.get('/api/diag', (req, res) => {
 // --- Folders ---
 app.get('/api/folders', (req, res) => {
   const d = loadData();
-  res.json(d.folders);
+  res.json(sortFolders(d.folders));
 });
 
 app.post('/api/folders', (req, res) => {
@@ -146,6 +158,7 @@ app.post('/api/folders', (req, res) => {
     const d = loadData();
     const folder = { id: Date.now().toString(), name: String(name).trim() };
     d.folders.push(folder);
+    d.folders = sortFolders(d.folders);
     saveData(d);
     res.json(folder);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -160,6 +173,7 @@ const updateFolder = (req, res) => {
     const f = d.folders.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Not found' });
     f.name = String(name).trim();
+    d.folders = sortFolders(d.folders);
     saveData(d);
     res.json(f);
   } catch (e) { res.status(500).json({ error: e.message }); }

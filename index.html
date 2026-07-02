@@ -213,11 +213,21 @@ let pendingMoveId = null;
 let pendingRenameId = null;
 let selectedFile = null;
 
+const folderNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+function getSortedFolders() {
+  return [...folders].sort((a, b) => {
+    const byName = folderNameCollator.compare(a.name || '', b.name || '');
+    return byName || String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
+
 async function init() {
   [folders, recipes] = await Promise.all([
     fetch('/api/folders').then(r => r.json()),
     fetch('/api/recipes').then(r => r.json())
   ]);
+  folders = getSortedFolders();
   render();
 }
 
@@ -258,7 +268,7 @@ function renderSidebar() {
       <span class="count">${noneCount}</span>
     </div>
   `;
-  folders.forEach(f => {
+  getSortedFolders().forEach(f => {
     const c = recipes.filter(r => r.folderId === f.id).length;
     html += `
       <div class="folder-item ${activeFolderId===f.id?'active':''}" onclick="setFolder('${f.id}')">
@@ -349,10 +359,12 @@ async function saveFolder() {
       const f = await readApiResponse(r);
       const idx = folders.findIndex(x => x.id === folderId);
       if (idx >= 0) folders[idx] = f;
+      folders = getSortedFolders();
       if (activeFolderId === folderId) document.getElementById('mainTitle').textContent = f.name;
     } else {
-      const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      const r = await fetch(`/api/folders?name=${encodeURIComponent(name)}`, { method:'POST' });
       folders.push(await readApiResponse(r));
+      folders = getSortedFolders();
     }
     closeModal('folderModal');
     editingFolderId = null;
@@ -387,7 +399,7 @@ function openAddRecipe() {
   document.getElementById('recipeNameInput').value = '';
   // Populate folder select
   const sel = document.getElementById('recipeFolderSelect');
-  sel.innerHTML = '<option value="">Unorganized</option>' + folders.map(f => `<option value="${f.id}" ${activeFolderId===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
+  sel.innerHTML = '<option value="">Unorganized</option>' + getSortedFolders().map(f => `<option value="${f.id}" ${activeFolderId===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
   openModal('recipeModal');
 }
 function handleFile(file) {
@@ -426,7 +438,7 @@ async function saveRecipe() {
 function openMove(id) {
   pendingMoveId = id;
   const sel = document.getElementById('moveFolderSelect');
-  sel.innerHTML = '<option value="">Unorganized</option>' + folders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+  sel.innerHTML = '<option value="">Unorganized</option>' + getSortedFolders().map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
   const r = recipes.find(x => x.id === id);
   if (r && r.folderId) sel.value = r.folderId;
   openModal('moveModal');
@@ -513,13 +525,12 @@ async function createInlineFolder() {
   const name = document.getElementById('inlineFolderName').value.trim();
   if (!name) return;
   try {
-    const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    const r = await fetch(`/api/folders?name=${encodeURIComponent(name)}`, { method:'POST' });
     const f = await readApiResponse(r);
     folders.push(f);
+    folders = getSortedFolders();
     const sel = document.getElementById('recipeFolderSelect');
-    const opt = document.createElement('option');
-    opt.value = f.id; opt.textContent = f.name;
-    sel.appendChild(opt);
+    sel.innerHTML = '<option value="">Unorganized</option>' + getSortedFolders().map(folder => `<option value="${folder.id}">${esc(folder.name)}</option>`).join('');
     sel.value = f.id;
     cancelInlineFolder();
   } catch (e) {
