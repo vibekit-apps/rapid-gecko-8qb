@@ -263,21 +263,29 @@ function renderSidebar() {
       <span class="folder-name">All Recipes</span>
       <span class="count">${allCount}</span>
     </div>
-    <div class="folder-item ${activeFolderId==='none'?'active':''}" onclick="setFolder('none')">
-      <span class="folder-name">Unorganized</span>
-      <span class="count">${noneCount}</span>
-    </div>
   `;
-  getSortedFolders().forEach(f => {
-    const c = recipes.filter(r => r.folderId === f.id).length;
+
+  const sidebarFolders = [
+    { id: 'none', name: 'Unorganized', count: noneCount, builtIn: true },
+    ...getSortedFolders().map(f => ({
+      ...f,
+      count: recipes.filter(r => r.folderId === f.id).length,
+      builtIn: false
+    }))
+  ].sort((a, b) => {
+    const byName = folderNameCollator.compare(a.name || '', b.name || '');
+    return byName || String(a.id || '').localeCompare(String(b.id || ''));
+  });
+
+  sidebarFolders.forEach(f => {
     html += `
       <div class="folder-item ${activeFolderId===f.id?'active':''}" onclick="setFolder('${f.id}')">
         <span class="folder-name">${esc(f.name)}</span>
-        <span class="count">${c}</span>
-        <div class="folder-actions">
+        <span class="count">${f.count}</span>
+        ${f.builtIn ? '' : `<div class="folder-actions">
           <button onclick="event.stopPropagation();openEditFolder('${f.id}')" title="Rename">&#9998;</button>
           <button onclick="event.stopPropagation();deleteFolder('${f.id}')" title="Delete">&#x2715;</button>
-        </div>
+        </div>`}
       </div>`;
   });
   list.innerHTML = html;
