@@ -6,4 +6,6 @@ memory/
 node_modules/
 data.json
 data.json.*.tmp
+recipes.sqlite
+recipes.sqlite.*.tmp
 uploads/

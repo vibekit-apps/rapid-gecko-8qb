@@ -89,7 +89,15 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
 /* Lightbox */
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
 .lightbox.hidden{display:none}
-.lightbox img{max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain}
+.recipe-detail{width:min(1100px,100%);max-height:92vh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:1rem;align-items:stretch}
+.recipe-detail img{width:100%;height:100%;max-height:92vh;border-radius:10px;object-fit:contain;background:#111}
+.recipe-text-panel{background:#fff;color:var(--fg);border-radius:10px;padding:1rem;overflow:auto}
+.recipe-text-panel h2{font-size:1.1rem;margin-bottom:.75rem}
+.recipe-text-panel h3{font-size:.8rem;text-transform:uppercase;color:var(--mute);margin:1rem 0 .4rem;letter-spacing:.04em}
+.recipe-text-panel ul,.recipe-text-panel ol{padding-left:1.2rem;font-size:.9rem;line-height:1.45}
+.recipe-text-panel li+li{margin-top:.25rem}
+.recipe-text-panel pre{white-space:pre-wrap;font:inherit;font-size:.85rem;line-height:1.45;color:#374151;background:#faf8f5;border:1px solid var(--border);border-radius:8px;padding:.75rem}
+.recipe-empty-text{font-size:.9rem;color:var(--mute)}
 .lightbox-close{position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.5rem;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .lightbox-close:hover{background:rgba(255,255,255,.3)}
 
@@ -102,6 +110,8 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
   .main-header{align-items:stretch}
   .main-header h1{width:100%;flex-basis:100%}
   .search-input{width:100%}
+  .recipe-detail{grid-template-columns:1fr;max-height:92vh;overflow:auto}
+  .recipe-detail img{height:auto;max-height:45vh}
 }
 </style>
 </head>
@@ -207,7 +217,10 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
 <!-- Lightbox -->
 <div class="lightbox hidden" id="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
-  <img id="lightboxImg">
+  <div class="recipe-detail" onclick="event.stopPropagation()">
+    <img id="lightboxImg">
+    <section class="recipe-text-panel" id="recipeTextPanel"></section>
+  </div>
 </div>
 
 <script>
@@ -344,7 +357,7 @@ function renderGrid() {
   }
 
   grid.innerHTML = visible.map(r => `
-    <div class="recipe-card" onclick="openLightbox('/uploads/${r.filename}')">
+    <div class="recipe-card" onclick="openRecipe('${r.id}')">
       <img src="/uploads/${r.filename}" alt="${esc(r.name)}" loading="lazy">
       <div class="card-menu">
         <button onclick="event.stopPropagation();openRename('${r.id}','${esc(r.name)}')" title="Rename">&#9998;</button>
@@ -537,9 +550,29 @@ async function deleteRecipe(id) {
   }
 }
 
-// Lightbox
-function openLightbox(src) {
-  document.getElementById('lightboxImg').src = src;
+// Recipe detail
+function renderList(items, ordered) {
+  if (!Array.isArray(items) || !items.length) return '<p class="recipe-empty-text">No parsed text found.</p>';
+  const tag = ordered ? 'ol' : 'ul';
+  return `<${tag}>${items.map(item => `<li>${esc(item)}</li>`).join('')}</${tag}>`;
+}
+function openRecipe(id) {
+  const recipe = recipes.find(r => r.id === id);
+  if (!recipe) return;
+  document.getElementById('lightboxImg').src = `/uploads/${recipe.filename}`;
+  const rawText = recipe.ocrText ? `<h3>Full Text</h3><pre>${esc(recipe.ocrText)}</pre>` : '';
+  const status = recipe.ocrStatus === 'failed'
+    ? `<p class="recipe-empty-text">Text scan failed${recipe.ocrError ? `: ${esc(recipe.ocrError)}` : ''}</p>`
+    : '';
+  document.getElementById('recipeTextPanel').innerHTML = `
+    <h2>${esc(recipe.name)}</h2>
+    ${status}
+    <h3>Ingredients</h3>
+    ${renderList(recipe.ingredients, false)}
+    <h3>Steps</h3>
+    ${renderList(recipe.steps, true)}
+    ${rawText}
+  `;
   document.getElementById('lightbox').classList.remove('hidden');
 }
 function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }

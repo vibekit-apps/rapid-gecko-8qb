@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const initSqlJs = require('sql.js');
 const { recognize } = require('tesseract.js');
 
 process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err.stack || err); });
@@ -11,49 +12,58 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, 'data.json');
+const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'recipes.sqlite');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 
-// Ensure dirs exist
+let db;
+
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// Test writability at startup
-try {
-  const testFile = DATA_FILE + '.tmp';
-  fs.writeFileSync(testFile, 'ok', 'utf8');
-  fs.unlinkSync(testFile);
-  console.log('Write test OK:', DATA_FILE);
-} catch (e) {
-  console.error('Write test FAILED:', e.message, '— uid:', process.getuid?.(), 'gid:', process.getgid?.());
+function writeFileAtomic(filePath, data) {
+  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, filePath);
+  } catch (e) {
+    try { fs.writeFileSync(filePath, data); }
+    catch (e2) { console.error('writeFileAtomic error:', e2.message); throw e2; }
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
+  }
 }
 
-// Load/save helpers
-function loadData() {
-  if (!fs.existsSync(DATA_FILE)) return { folders: [], recipes: [] };
-  try {
-    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    return {
-      folders: Array.isArray(data.folders) ? data.folders : [],
-      recipes: Array.isArray(data.recipes) ? data.recipes : []
-    };
-  }
-  catch (e) {
-    console.error('loadData error:', e.message);
-    return { folders: [], recipes: [] };
-  }
+function persistDb() {
+  writeFileAtomic(DB_FILE, Buffer.from(db.export()));
 }
-function saveData(d) {
-  const json = JSON.stringify(d, null, 2);
+
+function run(sql, params = []) {
+  db.run(sql, params);
+}
+
+function all(sql, params = []) {
+  const stmt = db.prepare(sql);
+  const rows = [];
   try {
-    const tmp = `${DATA_FILE}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, json, 'utf8');
-    fs.renameSync(tmp, DATA_FILE);
-  } catch (e) {
-    // Atomic rename can fail (EACCES/EPERM) when the container's squashed-root
-    // user can't rename over the workspace-owned file under a sticky dir.
-    // Fall back to an in-place write to the (world-writable) data file.
-    try { fs.writeFileSync(DATA_FILE, json, 'utf8'); }
-    catch (e2) { console.error('saveData error:', e2.message); throw e2; }
+    stmt.bind(params);
+    while (stmt.step()) rows.push(stmt.getAsObject());
+  } finally {
+    stmt.free();
+  }
+  return rows;
+}
+
+function one(sql, params = []) {
+  return all(sql, params)[0] || null;
+}
+
+function safeJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
   }
 }
 
@@ -69,12 +79,41 @@ function sortFolders(folders) {
   return [...folders].sort(compareFolders);
 }
 
-// Multer — store in uploads/
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'))
-});
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+function rowToFolder(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    createdAt: row.created_at || null
+  };
+}
+
+function rowToRecipe(row) {
+  return {
+    id: String(row.id),
+    folderId: row.folder_id ? String(row.folder_id) : null,
+    filename: row.filename,
+    name: row.name,
+    ocrText: row.ocr_text || '',
+    ingredients: safeJsonArray(row.ingredients_json),
+    steps: safeJsonArray(row.steps_json),
+    ocrStatus: row.ocr_status || 'pending',
+    ocrError: row.ocr_error || null,
+    createdAt: row.created_at
+  };
+}
+
+function getFolders() {
+  return sortFolders(all('SELECT * FROM folders').map(rowToFolder));
+}
+
+function getRecipes() {
+  return all('SELECT * FROM recipes ORDER BY created_at DESC, id DESC').map(rowToRecipe);
+}
+
+function getRecipe(id) {
+  const row = one('SELECT * FROM recipes WHERE id = ?', [String(id)]);
+  return row ? rowToRecipe(row) : null;
+}
 
 function cleanOcrText(text) {
   return String(text || '')
@@ -84,46 +123,223 @@ function cleanOcrText(text) {
     .trim();
 }
 
+function normalizeRecipeLine(line) {
+  return line
+    .replace(/^[\-*\u2022\s]+/, '')
+    .replace(/^\(?\d+[\).:-]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uniqueLines(lines, limit) {
+  const seen = new Set();
+  const out = [];
+  for (const line of lines.map(normalizeRecipeLine).filter(Boolean)) {
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(line);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function extractIngredientCandidates(text) {
   const measurementWords = [
     'cup', 'cups', 'tbsp', 'tablespoon', 'tablespoons', 'tsp', 'teaspoon', 'teaspoons',
     'oz', 'ounce', 'ounces', 'lb', 'lbs', 'pound', 'pounds', 'gram', 'grams', 'g', 'kg',
-    'ml', 'l', 'pinch', 'dash', 'clove', 'cloves', 'can', 'cans', 'package', 'packages'
+    'ml', 'l', 'pinch', 'dash', 'clove', 'cloves', 'can', 'cans', 'package', 'packages',
+    'stick', 'sticks', 'slice', 'slices'
   ];
-  const instructionWords = /\b(bake|boil|cook|combine|fold|heat|mix|preheat|pour|serve|stir|whisk)\b/i;
+  const instructionWords = /\b(add|bake|boil|cook|combine|fold|heat|mix|preheat|pour|serve|stir|whisk)\b/i;
   const amountPattern = /^(\d+|[\u00bc\u00bd\u00be\u2153\u2154\u215b\u215c\u215d\u215e]|\d+\s*\/\s*\d+|\d+\.\d+)/;
 
   const lines = cleanOcrText(text)
     .split('\n')
-    .map(line => line.replace(/^[\-*\u2022\s]+/, '').trim())
-    .filter(line => line.length >= 3 && line.length <= 120);
+    .map(normalizeRecipeLine)
+    .filter(line => line.length >= 3 && line.length <= 140);
 
-  const ingredients = lines.filter(line => {
+  return uniqueLines(lines.filter(line => {
     const lower = line.toLowerCase();
     const hasAmount = amountPattern.test(lower);
     const hasMeasure = measurementWords.some(word => new RegExp(`\\b${word}\\b`, 'i').test(lower));
     const looksLikeInstruction = instructionWords.test(lower) && lower.split(/\s+/).length > 8;
     return (hasAmount || hasMeasure) && !looksLikeInstruction;
+  }), 100);
+}
+
+function parseRecipeText(text) {
+  const lines = cleanOcrText(text)
+    .split('\n')
+    .map(normalizeRecipeLine)
+    .filter(line => line.length >= 2);
+
+  const ingredientHeaders = /^(ingredients?|you'?ll need|shopping list)$/i;
+  const stepHeaders = /^(directions?|instructions?|method|preparation|steps?)$/i;
+  const otherHeaders = /^(notes?|nutrition|serves?|yield|cook time|prep time)$/i;
+  const instructionWords = /\b(add|arrange|bake|beat|boil|broil|chill|combine|cook|cover|drain|fold|fry|heat|mix|preheat|pour|reduce|remove|roast|saute|season|serve|simmer|stir|whisk)\b/i;
+
+  let section = null;
+  const ingredients = [];
+  const steps = [];
+
+  for (const line of lines) {
+    if (ingredientHeaders.test(line)) { section = 'ingredients'; continue; }
+    if (stepHeaders.test(line)) { section = 'steps'; continue; }
+    if (otherHeaders.test(line)) { section = null; continue; }
+    if (section === 'ingredients') ingredients.push(line);
+    if (section === 'steps') steps.push(line);
+  }
+
+  const inferredSteps = lines.filter(line => {
+    if (ingredientHeaders.test(line) || stepHeaders.test(line) || otherHeaders.test(line)) return false;
+    return /^\(?\d+[\).:-]\s*/.test(line) || (instructionWords.test(line) && line.split(/\s+/).length >= 4);
   });
 
-  return [...new Set(ingredients)].slice(0, 80);
+  return {
+    ingredients: uniqueLines(ingredients.length ? ingredients : extractIngredientCandidates(text), 100),
+    steps: uniqueLines(steps.length ? steps : inferredSteps, 80)
+  };
 }
 
 async function readRecipeTextFromImage(filePath) {
   try {
     const result = await recognize(filePath, 'eng', { cachePath: __dirname });
     const text = cleanOcrText(result?.data?.text || '');
+    const parsed = parseRecipeText(text);
     return {
       text,
-      ingredients: extractIngredientCandidates(text),
+      ingredients: parsed.ingredients,
+      steps: parsed.steps,
       status: text ? 'complete' : 'empty',
       error: null
     };
   } catch (e) {
     console.error('OCR failed:', e.message);
-    return { text: '', ingredients: [], status: 'failed', error: e.message };
+    return { text: '', ingredients: [], steps: [], status: 'failed', error: e.message };
   }
 }
+
+function readJsonSeed() {
+  if (!fs.existsSync(DATA_FILE)) return { folders: [], recipes: [] };
+  try {
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    return {
+      folders: Array.isArray(data.folders) ? data.folders : [],
+      recipes: Array.isArray(data.recipes) ? data.recipes : []
+    };
+  } catch (e) {
+    console.error('JSON seed read failed:', e.message);
+    return { folders: [], recipes: [] };
+  }
+}
+
+function migrateJsonSeed() {
+  const existing = one('SELECT COUNT(*) AS count FROM folders')?.count + one('SELECT COUNT(*) AS count FROM recipes')?.count;
+  if (existing > 0) return;
+
+  const seed = readJsonSeed();
+  if (!seed.folders.length && !seed.recipes.length) return;
+
+  run('BEGIN TRANSACTION');
+  try {
+    for (const folder of seed.folders) {
+      run('INSERT OR IGNORE INTO folders (id, name, created_at) VALUES (?, ?, ?)', [
+        String(folder.id || Date.now()),
+        String(folder.name || 'Folder'),
+        folder.createdAt || new Date().toISOString()
+      ]);
+    }
+    for (const recipe of seed.recipes) {
+      const parsed = parseRecipeText(recipe.ocrText || '');
+      run(`INSERT OR IGNORE INTO recipes
+        (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, ocr_status, ocr_error, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        String(recipe.id || Date.now()),
+        recipe.folderId ? String(recipe.folderId) : null,
+        String(recipe.filename || ''),
+        String(recipe.name || 'Untitled Recipe'),
+        recipe.ocrText || '',
+        JSON.stringify(Array.isArray(recipe.ingredients) ? recipe.ingredients : parsed.ingredients),
+        JSON.stringify(Array.isArray(recipe.steps) ? recipe.steps : parsed.steps),
+        recipe.ocrStatus || (recipe.ocrText ? 'complete' : 'pending'),
+        recipe.ocrError || null,
+        recipe.createdAt || new Date().toISOString()
+      ]);
+    }
+    run('COMMIT');
+    persistDb();
+    console.log(`Migrated ${seed.folders.length} folders and ${seed.recipes.length} recipes into SQLite`);
+  } catch (e) {
+    run('ROLLBACK');
+    throw e;
+  }
+}
+
+async function backfillMissingOcr() {
+  const missing = all(`SELECT id, filename FROM recipes
+    WHERE filename IS NOT NULL
+      AND filename != ''
+      AND (ocr_text IS NULL OR ocr_text = '')
+      AND (ocr_status IS NULL OR ocr_status != 'failed')`);
+
+  for (const recipe of missing) {
+    const filePath = path.join(UPLOADS_DIR, recipe.filename);
+    if (!fs.existsSync(filePath)) continue;
+    console.log(`Reading recipe text from ${recipe.filename}`);
+    const ocr = await readRecipeTextFromImage(filePath);
+    run(`UPDATE recipes
+      SET ocr_text = ?, ingredients_json = ?, steps_json = ?, ocr_status = ?, ocr_error = ?
+      WHERE id = ?`, [
+      ocr.text,
+      JSON.stringify(ocr.ingredients),
+      JSON.stringify(ocr.steps),
+      ocr.status,
+      ocr.error,
+      String(recipe.id)
+    ]);
+    persistDb();
+  }
+}
+
+async function initDatabase() {
+  const SQL = await initSqlJs({
+    locateFile: file => path.join(__dirname, 'node_modules/sql.js/dist', file)
+  });
+
+  db = fs.existsSync(DB_FILE)
+    ? new SQL.Database(fs.readFileSync(DB_FILE))
+    : new SQL.Database();
+
+  run('PRAGMA foreign_keys = ON');
+  run(`CREATE TABLE IF NOT EXISTS folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS recipes (
+    id TEXT PRIMARY KEY,
+    folder_id TEXT,
+    filename TEXT NOT NULL,
+    name TEXT NOT NULL,
+    ocr_text TEXT NOT NULL DEFAULT '',
+    ingredients_json TEXT NOT NULL DEFAULT '[]',
+    steps_json TEXT NOT NULL DEFAULT '[]',
+    ocr_status TEXT NOT NULL DEFAULT 'pending',
+    ocr_error TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+  )`);
+  run('CREATE INDEX IF NOT EXISTS idx_recipes_folder ON recipes(folder_id)');
+  migrateJsonSeed();
+  persistDb();
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'))
+});
+const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 function parseJsonBody(req, res, next) {
   const contentType = req.headers['content-type'] || '';
@@ -182,22 +398,19 @@ app.use(parseJsonBody);
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-// Diagnostic endpoint
 app.get('/api/diag', (req, res) => {
-  const testFile = DATA_FILE + '.tmp';
+  const testFile = DB_FILE + '.tmp';
   try {
     fs.writeFileSync(testFile, 'ok', 'utf8');
     fs.unlinkSync(testFile);
-    res.json({ writable: true, data: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+    res.json({ writable: true, database: DB_FILE, jsonSeed: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
   } catch (e) {
-    res.json({ writable: false, error: e.message, data: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+    res.json({ writable: false, error: e.message, database: DB_FILE, jsonSeed: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
   }
 });
 
-// --- Folders ---
 app.get('/api/folders', (req, res) => {
-  const d = loadData();
-  res.json(sortFolders(d.folders));
+  res.json(getFolders());
 });
 
 app.post('/api/folders', (req, res) => {
@@ -205,11 +418,9 @@ app.post('/api/folders', (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const name = body.name ?? req.query?.name;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
-    const d = loadData();
-    const folder = { id: Date.now().toString(), name: String(name).trim() };
-    d.folders.push(folder);
-    d.folders = sortFolders(d.folders);
-    saveData(d);
+    const folder = { id: Date.now().toString(), name: String(name).trim(), createdAt: new Date().toISOString() };
+    run('INSERT INTO folders (id, name, created_at) VALUES (?, ?, ?)', [folder.id, folder.name, folder.createdAt]);
+    persistDb();
     res.json(folder);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -219,13 +430,11 @@ const updateFolder = (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const name = body.name ?? req.query?.name;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
-    const d = loadData();
-    const f = d.folders.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).json({ error: 'Not found' });
-    f.name = String(name).trim();
-    d.folders = sortFolders(d.folders);
-    saveData(d);
-    res.json(f);
+    const folder = one('SELECT * FROM folders WHERE id = ?', [String(req.params.id)]);
+    if (!folder) return res.status(404).json({ error: 'Not found' });
+    run('UPDATE folders SET name = ? WHERE id = ?', [String(name).trim(), String(req.params.id)]);
+    persistDb();
+    res.json(rowToFolder(one('SELECT * FROM folders WHERE id = ?', [String(req.params.id)])));
   } catch (e) { res.status(500).json({ error: e.message }); }
 };
 app.post('/api/folders/:id', updateFolder);
@@ -234,24 +443,20 @@ app.put('/api/folders/:id', updateFolder);
 
 app.delete('/api/folders/:id', (req, res) => {
   try {
-    const d = loadData();
-    d.folders = d.folders.filter(x => x.id !== req.params.id);
-    d.recipes.forEach(r => { if (r.folderId === req.params.id) r.folderId = null; });
-    saveData(d);
+    run('UPDATE recipes SET folder_id = NULL WHERE folder_id = ?', [String(req.params.id)]);
+    run('DELETE FROM folders WHERE id = ?', [String(req.params.id)]);
+    persistDb();
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- Recipes ---
 app.get('/api/recipes', (req, res) => {
-  const d = loadData();
-  res.json(d.recipes);
+  res.json(getRecipes());
 });
 
 app.post('/api/recipes', upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Photo required' });
-    const d = loadData();
     const ocr = await readRecipeTextFromImage(req.file.path);
     const recipe = {
       id: Date.now().toString(),
@@ -260,25 +465,43 @@ app.post('/api/recipes', upload.single('photo'), async (req, res) => {
       name: req.body.name || 'Untitled Recipe',
       ocrText: ocr.text,
       ingredients: ocr.ingredients,
+      steps: ocr.steps,
       ocrStatus: ocr.status,
       ocrError: ocr.error,
       createdAt: new Date().toISOString()
     };
-    d.recipes.push(recipe);
-    saveData(d);
+
+    run(`INSERT INTO recipes
+      (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, ocr_status, ocr_error, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+      recipe.id,
+      recipe.folderId,
+      recipe.filename,
+      recipe.name,
+      recipe.ocrText,
+      JSON.stringify(recipe.ingredients),
+      JSON.stringify(recipe.steps),
+      recipe.ocrStatus,
+      recipe.ocrError,
+      recipe.createdAt
+    ]);
+    persistDb();
     res.json(recipe);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 const patchRecipe = (req, res) => {
   try {
-    const d = loadData();
-    const r = d.recipes.find(x => x.id === req.params.id);
-    if (!r) return res.status(404).json({ error: 'Not found' });
-    if (req.body.name !== undefined) r.name = req.body.name;
-    if (req.body.folderId !== undefined) r.folderId = req.body.folderId;
-    saveData(d);
-    res.json(r);
+    const recipe = getRecipe(req.params.id);
+    if (!recipe) return res.status(404).json({ error: 'Not found' });
+    if (req.body.name !== undefined) {
+      run('UPDATE recipes SET name = ? WHERE id = ?', [String(req.body.name), String(req.params.id)]);
+    }
+    if (req.body.folderId !== undefined) {
+      run('UPDATE recipes SET folder_id = ? WHERE id = ?', [req.body.folderId ? String(req.body.folderId) : null, String(req.params.id)]);
+    }
+    persistDb();
+    res.json(getRecipe(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 };
 app.post('/api/recipes/:id', patchRecipe);
@@ -286,14 +509,13 @@ app.patch('/api/recipes/:id', patchRecipe);
 
 app.delete('/api/recipes/:id', (req, res) => {
   try {
-    const d = loadData();
-    const r = d.recipes.find(x => x.id === req.params.id);
-    if (r) {
-      const fp = path.join(UPLOADS_DIR, r.filename);
+    const recipe = getRecipe(req.params.id);
+    if (recipe) {
+      const fp = path.join(UPLOADS_DIR, recipe.filename);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
-    d.recipes = d.recipes.filter(x => x.id !== req.params.id);
-    saveData(d);
+    run('DELETE FROM recipes WHERE id = ?', [String(req.params.id)]);
+    persistDb();
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -311,4 +533,12 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log('Recipe box ready on port ' + PORT));
+initDatabase()
+  .then(() => {
+    app.listen(PORT, '0.0.0.0', () => console.log('Recipe box ready on port ' + PORT));
+    backfillMissingOcr().catch(err => console.error('OCR backfill failed:', err.stack || err));
+  })
+  .catch(err => {
+    console.error('Database startup failed:', err.stack || err);
+    process.exit(1);
+  });
