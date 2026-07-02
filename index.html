@@ -132,7 +132,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
     <input type="text" id="folderNameInput" placeholder="e.g. Desserts" maxlength="60">
     <div class="modal-actions">
       <button type="button" class="btn btn-secondary" onclick="closeModal('folderModal')">Cancel</button>
-      <button type="button" class="btn btn-primary" onclick="saveFolder()">Save</button>
+      <button type="button" class="btn btn-primary" id="folderSaveButton">Save</button>
     </div>
   </div>
 </div>
@@ -208,6 +208,7 @@ let folders = [];
 let recipes = [];
 let activeFolderId = 'all'; // 'all' or folder id
 let editingFolderId = null;
+let savingFolder = false;
 let pendingMoveId = null;
 let pendingRenameId = null;
 let selectedFile = null;
@@ -316,41 +317,66 @@ function openNewFolder() {
   editingFolderId = null;
   document.getElementById('folderModalTitle').textContent = 'New Folder';
   document.getElementById('folderNameInput').value = '';
+  document.getElementById('folderSaveButton').disabled = false;
+  document.getElementById('folderSaveButton').textContent = 'Save';
   openModal('folderModal');
+  document.getElementById('folderNameInput').focus();
 }
 function openEditFolder(id) {
-  editingFolderId = id;
   const f = folders.find(x => x.id === id);
+  if (!f) return;
+  editingFolderId = id;
   document.getElementById('folderModalTitle').textContent = 'Rename Folder';
   document.getElementById('folderNameInput').value = f.name;
+  document.getElementById('folderSaveButton').disabled = false;
+  document.getElementById('folderSaveButton').textContent = 'Save';
   openModal('folderModal');
+  document.getElementById('folderNameInput').focus();
+  document.getElementById('folderNameInput').select();
 }
 async function saveFolder() {
+  if (savingFolder) return;
   const name = document.getElementById('folderNameInput').value.trim();
   if (!name) return;
+  const folderId = editingFolderId;
+  const saveButton = document.getElementById('folderSaveButton');
+  savingFolder = true;
+  saveButton.disabled = true;
+  saveButton.textContent = 'Saving...';
   try {
-    if (editingFolderId) {
-      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    if (folderId) {
+      const r = await fetch(`/api/folders/${folderId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
       const f = await readApiResponse(r);
-      const idx = folders.findIndex(x => x.id === editingFolderId);
+      const idx = folders.findIndex(x => x.id === folderId);
       if (idx >= 0) folders[idx] = f;
+      if (activeFolderId === folderId) document.getElementById('mainTitle').textContent = f.name;
     } else {
       const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
       folders.push(await readApiResponse(r));
     }
     closeModal('folderModal');
+    editingFolderId = null;
     render();
   } catch (e) {
     alert('Could not save folder: ' + e.message);
+  } finally {
+    savingFolder = false;
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save';
   }
 }
 async function deleteFolder(id) {
   if (!confirm('Delete folder? Recipes inside will move to Unorganized.')) return;
-  await fetch(`/api/folders/${id}`, { method:'DELETE' });
-  folders = folders.filter(x => x.id !== id);
-  recipes.forEach(r => { if (r.folderId === id) r.folderId = null; });
-  if (activeFolderId === id) activeFolderId = 'all';
-  render();
+  try {
+    const response = await fetch(`/api/folders/${id}`, { method:'DELETE' });
+    await readApiResponse(response);
+    folders = folders.filter(x => x.id !== id);
+    recipes.forEach(r => { if (r.folderId === id) r.folderId = null; });
+    if (activeFolderId === id) activeFolderId = 'all';
+    render();
+  } catch (e) {
+    alert('Could not delete folder: ' + e.message);
+  }
 }
 
 // Recipe add
@@ -386,10 +412,14 @@ async function saveRecipe() {
   fd.append('photo', selectedFile);
   fd.append('name', name);
   if (folderId) fd.append('folderId', folderId);
-  const r = await fetch('/api/recipes', { method:'POST', body: fd });
-  recipes.push(await r.json());
-  closeModal('recipeModal');
-  render();
+  try {
+    const r = await fetch('/api/recipes', { method:'POST', body: fd });
+    recipes.push(await readApiResponse(r));
+    closeModal('recipeModal');
+    render();
+  } catch (e) {
+    alert('Could not save recipe: ' + e.message);
+  }
 }
 
 // Move
@@ -403,11 +433,16 @@ function openMove(id) {
 }
 async function moveRecipe() {
   const folderId = document.getElementById('moveFolderSelect').value || null;
-  await fetch(`/api/recipes/${pendingMoveId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
-  const r = recipes.find(x => x.id === pendingMoveId);
-  if (r) r.folderId = folderId;
-  closeModal('moveModal');
-  render();
+  try {
+    const response = await fetch(`/api/recipes/${pendingMoveId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
+    const updatedRecipe = await readApiResponse(response);
+    const r = recipes.find(x => x.id === pendingMoveId);
+    if (r) Object.assign(r, updatedRecipe);
+    closeModal('moveModal');
+    render();
+  } catch (e) {
+    alert('Could not move recipe: ' + e.message);
+  }
 }
 
 // Rename
@@ -419,19 +454,29 @@ function openRename(id, name) {
 async function doRename() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) return;
-  await fetch(`/api/recipes/${pendingRenameId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-  const r = recipes.find(x => x.id === pendingRenameId);
-  if (r) r.name = name;
-  closeModal('renameModal');
-  render();
+  try {
+    const response = await fetch(`/api/recipes/${pendingRenameId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    const updatedRecipe = await readApiResponse(response);
+    const r = recipes.find(x => x.id === pendingRenameId);
+    if (r) Object.assign(r, updatedRecipe);
+    closeModal('renameModal');
+    render();
+  } catch (e) {
+    alert('Could not rename recipe: ' + e.message);
+  }
 }
 
 // Delete recipe
 async function deleteRecipe(id) {
   if (!confirm('Delete this recipe photo?')) return;
-  await fetch(`/api/recipes/${id}`, { method:'DELETE' });
-  recipes = recipes.filter(x => x.id !== id);
-  render();
+  try {
+    const response = await fetch(`/api/recipes/${id}`, { method:'DELETE' });
+    await readApiResponse(response);
+    recipes = recipes.filter(x => x.id !== id);
+    render();
+  } catch (e) {
+    alert('Could not delete recipe: ' + e.message);
+  }
 }
 
 // Lightbox
@@ -449,6 +494,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.q
 
 // Enter key in modals
 document.getElementById('folderNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveFolder(); });
+document.getElementById('folderSaveButton').addEventListener('click', saveFolder);
 document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
 document.getElementById('renameInput').addEventListener('keydown', e => { if (e.key==='Enter') doRename(); });
 document.getElementById('inlineFolderName').addEventListener('keydown', e => { if (e.key==='Enter') createInlineFolder(); });
