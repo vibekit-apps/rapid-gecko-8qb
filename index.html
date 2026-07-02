@@ -69,7 +69,11 @@ button{touch-action:manipulation}
 .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1.05rem}
 .recipe-card{background:var(--card);border:1px solid rgba(222,214,202,.92);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .16s,transform .16s,border-color .16s;position:relative;box-shadow:0 8px 22px rgba(70,55,36,.07)}
 .recipe-card:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#cbbba7}
-.recipe-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#e9e1d5}
+.recipe-card .photo-wrap{position:relative;overflow:hidden;background:#e9e1d5;aspect-ratio:4/3}
+.recipe-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .18s ease}
+.recipe-card:hover .photo-wrap img{transform:scale(1.06)}
+.photo-zoom-icon{position:absolute;left:.55rem;bottom:.55rem;width:34px;height:34px;border:1px solid rgba(255,255,255,.7);border-radius:50%;background:rgba(29,27,24,.68);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.22);pointer-events:none}
+.photo-zoom-icon svg{width:17px;height:17px}
 .recipe-card .card-body{padding:.82rem .85rem .9rem}
 .recipe-card .card-name{font-size:.95rem;font-weight:760;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recipe-card .card-date{font-size:.74rem;color:var(--soft);margin-top:.28rem}
@@ -115,7 +119,10 @@ button{touch-action:manipulation}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
 .lightbox.hidden{display:none}
 .recipe-detail{width:min(1100px,100%);max-height:92vh;max-height:92dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:1rem;align-items:stretch}
-.recipe-detail img{width:100%;height:100%;max-height:92vh;max-height:92dvh;border-radius:10px;object-fit:contain;background:#111}
+.lightbox-photo{position:relative;overflow:hidden;border-radius:10px;background:#111;cursor:zoom-in;min-height:0}
+.lightbox-photo img{width:100%;height:100%;max-height:92vh;max-height:92dvh;object-fit:contain;display:block;transform-origin:var(--zoom-x,50%) var(--zoom-y,50%);transition:transform .16s ease}
+.lightbox-photo:hover img{transform:scale(1.85)}
+.lightbox-photo:hover .photo-zoom-icon{opacity:0}
 .recipe-text-panel{background:#fffdf8;color:var(--fg);border-radius:10px;padding:1.15rem;overflow:auto}
 .recipe-text-panel h2{font-size:1.25rem;line-height:1.15;margin-bottom:.75rem}
 .recipe-text-panel h3{font-size:.8rem;text-transform:uppercase;color:var(--mute);margin:1rem 0 .4rem;letter-spacing:.04em}
@@ -162,7 +169,9 @@ button{touch-action:manipulation}
   .modal-actions .btn{flex:1}
   .lightbox{align-items:flex-start;overflow:auto;padding:calc(3.75rem + env(safe-area-inset-top)) .75rem calc(.75rem + env(safe-area-inset-bottom))}
   .recipe-detail{grid-template-columns:1fr;width:100%;max-height:none;overflow:visible;gap:.75rem}
-  .recipe-detail img{height:auto;max-height:42dvh;border-radius:8px}
+  .lightbox-photo{border-radius:8px}
+  .lightbox-photo img{height:auto;max-height:42dvh}
+  .lightbox-photo:hover img{transform:none}
   .recipe-text-panel{max-height:none;border-radius:8px;padding:.9rem}
   .recipe-text-panel h2{font-size:1rem}
   .recipe-text-panel ul,.recipe-text-panel ol{font-size:.92rem}
@@ -289,7 +298,12 @@ button{touch-action:manipulation}
 <div class="lightbox hidden" id="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
   <div class="recipe-detail" onclick="event.stopPropagation()">
-    <img id="lightboxImg">
+    <div class="lightbox-photo" id="lightboxPhoto">
+      <img id="lightboxImg">
+      <span class="photo-zoom-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+      </span>
+    </div>
     <section class="recipe-text-panel" id="recipeTextPanel"></section>
   </div>
 </div>
@@ -525,7 +539,12 @@ function renderGrid() {
 
   grid.innerHTML = visible.map(r => `
     <div class="recipe-card" onclick="openRecipe('${r.id}')">
-      <img src="/uploads/${r.filename}" alt="${esc(r.name)}" loading="lazy">
+      <div class="photo-wrap">
+        <img src="/uploads/${r.filename}" alt="${esc(r.name)}" loading="lazy">
+        <span class="photo-zoom-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+        </span>
+      </div>
       <div class="card-menu">
         <button onclick="event.stopPropagation();openRename('${r.id}','${esc(r.name)}')" title="Rename">&#9998;</button>
         <button onclick="event.stopPropagation();openMove('${r.id}')" title="Move">&#10137;</button>
@@ -758,6 +777,11 @@ function openRecipe(id) {
   document.getElementById('lightbox').classList.remove('hidden');
 }
 function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+document.getElementById('lightboxPhoto').addEventListener('mousemove', e => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty('--zoom-x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+  e.currentTarget.style.setProperty('--zoom-y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+});
 
 // Modal helpers
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
