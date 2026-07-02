@@ -3,7 +3,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
-const { recognize } = require('tesseract.js');
+const { createWorker, PSM } = require('tesseract.js');
 
 process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err.stack || err); });
 process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); });
@@ -14,6 +14,7 @@ const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, 'data.json');
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'recipes.sqlite');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+const OCR_ALGORITHM_VERSION = '2';
 
 let db;
 
@@ -54,6 +55,16 @@ function all(sql, params = []) {
 
 function one(sql, params = []) {
   return all(sql, params)[0] || null;
+}
+
+function getMeta(key) {
+  return one('SELECT value FROM app_meta WHERE key = ?', [key])?.value || null;
+}
+
+function setMeta(key, value) {
+  run(`INSERT INTO app_meta (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [key, value]);
 }
 
 function safeJsonArray(value) {
@@ -202,10 +213,44 @@ function parseRecipeText(text) {
   };
 }
 
+function scoreOcrText(text, confidence) {
+  const cleaned = cleanOcrText(text);
+  const letters = (cleaned.match(/[A-Za-z]/g) || []).length;
+  const words = (cleaned.match(/[A-Za-z][A-Za-z'-]{2,}/g) || []).length;
+  const recipeWords = (cleaned.match(/\b(bake|boil|cup|cups|directions?|ingredients?|mix|preheat|stir|tablespoons?|teaspoons?)\b/gi) || []).length;
+  const garbage = (cleaned.match(/[{}[\]|~^_=<>]/g) || []).length;
+  return (Number(confidence) || 0) + (letters * 0.2) + (words * 2) + (recipeWords * 8) - (garbage * 6);
+}
+
 async function readRecipeTextFromImage(filePath) {
+  let worker;
   try {
-    const result = await recognize(filePath, 'eng', { cachePath: __dirname });
-    const text = cleanOcrText(result?.data?.text || '');
+    worker = await createWorker('eng', 1, { cachePath: __dirname });
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.AUTO,
+      preserve_interword_spaces: '1',
+      user_defined_dpi: '300'
+    });
+
+    const attempts = [
+      { label: 'as-uploaded', radians: 0 },
+      { label: 'rotated-right', radians: Math.PI / 2 },
+      { label: 'upside-down', radians: Math.PI },
+      { label: 'rotated-left', radians: -Math.PI / 2 }
+    ];
+    let best = null;
+
+    for (const attempt of attempts) {
+      const result = await worker.recognize(filePath, {
+        rotateAuto: true,
+        rotateRadians: attempt.radians
+      }, { text: true, blocks: false, hocr: false, tsv: false });
+      const text = cleanOcrText(result?.data?.text || '');
+      const score = scoreOcrText(text, result?.data?.confidence);
+      if (!best || score > best.score) best = { ...attempt, text, score };
+    }
+
+    const text = best?.text || '';
     const parsed = parseRecipeText(text);
     return {
       text,
@@ -217,6 +262,8 @@ async function readRecipeTextFromImage(filePath) {
   } catch (e) {
     console.error('OCR failed:', e.message);
     return { text: '', ingredients: [], steps: [], status: 'failed', error: e.message };
+  } finally {
+    if (worker) await worker.terminate().catch(() => {});
   }
 }
 
@@ -302,6 +349,46 @@ async function backfillMissingOcr() {
   }
 }
 
+async function reprocessAllOcr() {
+  const recipes = all(`SELECT id, filename FROM recipes
+    WHERE filename IS NOT NULL
+      AND filename != ''`);
+
+  let updated = 0;
+  let missing = 0;
+  for (const recipe of recipes) {
+    const filePath = path.join(UPLOADS_DIR, recipe.filename);
+    if (!fs.existsSync(filePath)) {
+      missing += 1;
+      continue;
+    }
+    console.log(`Re-reading recipe text from ${recipe.filename}`);
+    const ocr = await readRecipeTextFromImage(filePath);
+    run(`UPDATE recipes
+      SET ocr_text = ?, ingredients_json = ?, steps_json = ?, ocr_status = ?, ocr_error = ?
+      WHERE id = ?`, [
+      ocr.text,
+      JSON.stringify(ocr.ingredients),
+      JSON.stringify(ocr.steps),
+      ocr.status,
+      ocr.error,
+      String(recipe.id)
+    ]);
+    persistDb();
+    updated += 1;
+  }
+
+  return { updated, missing };
+}
+
+async function restoreExistingOcrIfNeeded() {
+  if (getMeta('ocr_algorithm_version') === OCR_ALGORITHM_VERSION) return;
+  const result = await reprocessAllOcr();
+  setMeta('ocr_algorithm_version', OCR_ALGORITHM_VERSION);
+  persistDb();
+  console.log(`OCR restore complete: ${result.updated} updated, ${result.missing} missing image files`);
+}
+
 async function initDatabase() {
   const SQL = await initSqlJs({
     locateFile: file => path.join(__dirname, 'node_modules/sql.js/dist', file)
@@ -329,6 +416,10 @@ async function initDatabase() {
     ocr_error TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
   )`);
   run('CREATE INDEX IF NOT EXISTS idx_recipes_folder ON recipes(folder_id)');
   migrateJsonSeed();
@@ -535,8 +626,22 @@ app.use((err, req, res, next) => {
 
 initDatabase()
   .then(() => {
+    if (process.argv.includes('--reprocess-ocr')) {
+      return reprocessAllOcr()
+        .then(({ updated, missing }) => {
+          setMeta('ocr_algorithm_version', OCR_ALGORITHM_VERSION);
+          persistDb();
+          console.log(`OCR reprocess complete: ${updated} updated, ${missing} missing image files`);
+        })
+        .finally(() => {
+          process.exit(0);
+        });
+    }
+
     app.listen(PORT, '0.0.0.0', () => console.log('Recipe box ready on port ' + PORT));
-    backfillMissingOcr().catch(err => console.error('OCR backfill failed:', err.stack || err));
+    backfillMissingOcr()
+      .then(() => restoreExistingOcrIfNeeded())
+      .catch(err => console.error('OCR restore failed:', err.stack || err));
   })
   .catch(err => {
     console.error('Database startup failed:', err.stack || err);
