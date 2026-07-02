@@ -9,10 +9,10 @@
 (document key decisions here as you build)
 
 ## Known Issues
-(none yet)
+(none currently)
 
 ## Decisions
-(none yet)
+- API endpoints should return JSON errors for `/api/*` routes so the UI never dumps HTML into user-facing alerts.
 
 ## How to Use Memory
 - Update this file with important decisions, architecture choices, and lessons

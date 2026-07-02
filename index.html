@@ -220,6 +220,23 @@ async function init() {
   render();
 }
 
+async function readApiResponse(response) {
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json')
+    ? await response.json()
+    : await response.text();
+
+  if (response.ok) return payload;
+
+  const message = typeof payload === 'object' && payload && payload.error
+    ? payload.error
+    : typeof payload === 'string'
+      ? payload.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
+      : '';
+
+  throw new Error(message || `Request failed (${response.status})`);
+}
+
 function render() {
   renderSidebar();
   renderGrid();
@@ -313,15 +330,13 @@ async function saveFolder() {
   if (!name) return;
   try {
     if (editingFolderId) {
-      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-      if (!r.ok) throw new Error(await r.text());
-      const f = await r.json();
+      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      const f = await readApiResponse(r);
       const idx = folders.findIndex(x => x.id === editingFolderId);
       if (idx >= 0) folders[idx] = f;
     } else {
       const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-      if (!r.ok) throw new Error(await r.text());
-      folders.push(await r.json());
+      folders.push(await readApiResponse(r));
     }
     closeModal('folderModal');
     render();
@@ -451,15 +466,19 @@ function cancelInlineFolder() {
 async function createInlineFolder() {
   const name = document.getElementById('inlineFolderName').value.trim();
   if (!name) return;
-  const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-  const f = await r.json();
-  folders.push(f);
-  const sel = document.getElementById('recipeFolderSelect');
-  const opt = document.createElement('option');
-  opt.value = f.id; opt.textContent = f.name;
-  sel.appendChild(opt);
-  sel.value = f.id;
-  cancelInlineFolder();
+  try {
+    const r = await fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    const f = await readApiResponse(r);
+    folders.push(f);
+    const sel = document.getElementById('recipeFolderSelect');
+    const opt = document.createElement('option');
+    opt.value = f.id; opt.textContent = f.name;
+    sel.appendChild(opt);
+    sel.value = f.id;
+    cancelInlineFolder();
+  } catch (e) {
+    alert('Could not save folder: ' + e.message);
+  }
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 

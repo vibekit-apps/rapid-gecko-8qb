@@ -155,4 +155,17 @@ app.delete('/api/recipes/:id', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API route not found' });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Request error:', err.stack || err);
+  if (req.path && req.path.startsWith('/api/')) {
+    res.status(err.status || 500).json({ error: err.message || 'Server error' });
+    return;
+  }
+  next(err);
+});
+
 app.listen(PORT, () => console.log('Recipe box ready on port ' + PORT));
