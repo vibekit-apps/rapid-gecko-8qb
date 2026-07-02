@@ -42,12 +42,18 @@ function loadData() {
   }
 }
 function saveData(d) {
+  const json = JSON.stringify(d, null, 2);
   try {
     const tmp = `${DATA_FILE}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(d, null, 2), 'utf8');
+    fs.writeFileSync(tmp, json, 'utf8');
     fs.renameSync(tmp, DATA_FILE);
+  } catch (e) {
+    // Atomic rename can fail (EACCES/EPERM) when the container's squashed-root
+    // user can't rename over the workspace-owned file under a sticky dir.
+    // Fall back to an in-place write to the (world-writable) data file.
+    try { fs.writeFileSync(DATA_FILE, json, 'utf8'); }
+    catch (e2) { console.error('saveData error:', e2.message); throw e2; }
   }
-  catch (e) { console.error('saveData error:', e.message); throw e; }
 }
 
 // Multer — store in uploads/
@@ -134,10 +140,11 @@ app.get('/api/folders', (req, res) => {
 
 app.post('/api/folders', (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const name = body.name ?? req.query?.name;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
     const d = loadData();
-    const folder = { id: Date.now().toString(), name: name.trim() };
+    const folder = { id: Date.now().toString(), name: String(name).trim() };
     d.folders.push(folder);
     saveData(d);
     res.json(folder);
