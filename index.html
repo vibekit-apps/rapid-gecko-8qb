@@ -8,89 +8,95 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#faf8f5;--fg:#1a1a1a;--mute:#6b7280;--card:#fff;
-  --border:#e5e1da;--accent:#c0392b;--accent2:#e8d5b7;--radius:12px;
+  --bg:#f6f3ed;--fg:#1d1b18;--mute:#706b64;--soft:#8f867a;--card:#fffdf8;
+  --border:#ded6ca;--accent:#b64232;--accent-dark:#8f3025;--accent-soft:#f2d8cf;
+  --sage:#dce8dc;--sage-dark:#426b52;--gold:#d7a84a;--shadow:0 18px 48px rgba(58,43,28,.13);
+  --radius:10px;
 }
 html{height:100%;scroll-behavior:smooth}
-body{min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh;background:
+  radial-gradient(circle at top left, rgba(214,168,74,.13), transparent 32rem),
+  linear-gradient(180deg,#fbfaf6 0%,var(--bg) 46%,#f2eee6 100%);
+  color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;text-size-adjust:100%}
 button,input,select{font:inherit}
 button{touch-action:manipulation}
 
 /* Layout */
 .app{display:flex;min-height:100vh;min-height:100dvh}
-.sidebar{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;height:100dvh}
-.main{flex:1;padding:2rem 1.5rem;min-width:0}
+.sidebar{width:268px;flex-shrink:0;background:rgba(255,253,248,.94);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;height:100dvh;box-shadow:8px 0 32px rgba(87,68,45,.05);backdrop-filter:blur(12px)}
+.main{flex:1;padding:2rem clamp(1.25rem,3vw,3rem);min-width:0}
 
 /* Sidebar */
-.sidebar-header{padding:1.25rem 1rem .75rem;border-bottom:1px solid var(--border)}
-.sidebar-header h2{font-size:1.1rem;font-weight:700;letter-spacing:-.02em}
-.sidebar-header span{font-size:.75rem;color:var(--mute)}
-.folder-list{flex:1;overflow-y:auto;padding:.5rem 0}
-.folder-item{display:flex;align-items:center;gap:.5rem;min-height:44px;padding:.6rem 1rem;cursor:pointer;border-radius:0;transition:background .12s;font-size:.875rem;color:var(--fg)}
-.folder-item:hover{background:#f5f1eb}
-.folder-item.active{background:var(--accent2);font-weight:600}
+.sidebar-header{padding:1.35rem 1.15rem 1rem;border-bottom:1px solid var(--border)}
+.sidebar-header h2{font-size:1.35rem;font-weight:800;line-height:1.05}
+.sidebar-header span{display:block;font-size:.78rem;color:var(--soft);margin-top:.3rem}
+.folder-list{flex:1;overflow-y:auto;padding:.7rem .65rem}
+.folder-item{display:flex;align-items:center;gap:.55rem;min-height:44px;padding:.62rem .72rem;cursor:pointer;border-radius:9px;transition:background .12s,box-shadow .12s,color .12s;font-size:.9rem;color:var(--fg)}
+.folder-item:hover{background:#f0eadf}
+.folder-item.active{background:var(--sage);box-shadow:inset 3px 0 0 var(--sage-dark);font-weight:700;color:#22372a}
 .folder-item .folder-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.folder-item .count{font-size:.7rem;color:var(--mute);background:#f0ece4;padding:.1rem .4rem;border-radius:99px}
+.folder-item .count{font-size:.72rem;color:var(--soft);background:#f1eadf;padding:.12rem .45rem;border-radius:99px}
+.folder-item.active .count{background:rgba(255,255,255,.7);color:#385442}
 .folder-item .folder-actions{display:none;gap:.25rem}
 .folder-item:hover .folder-actions{display:flex}
 .folder-actions button{background:none;border:none;cursor:pointer;min-width:32px;min-height:32px;padding:3px 5px;border-radius:5px;color:var(--mute);font-size:.75rem}
 .folder-actions button:hover{background:#e5e1da;color:var(--fg)}
 @media (hover:none){.folder-item .folder-actions{display:flex}}
-.new-folder-btn{margin:.75rem 1rem;display:flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;padding:.6rem .875rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.8125rem;font-weight:600;cursor:pointer;width:calc(100% - 2rem)}
-.new-folder-btn:hover{background:#a93226}
+.new-folder-btn{margin:.85rem 1rem 1rem;display:flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;padding:.6rem .875rem;background:var(--fg);color:#fff;border:none;border-radius:var(--radius);font-size:.84rem;font-weight:700;cursor:pointer;width:calc(100% - 2rem);box-shadow:0 10px 22px rgba(29,27,24,.16)}
+.new-folder-btn:hover{background:#38322d}
 
 /* Main header */
-.main-header{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px) auto;align-items:center;gap:1rem;margin-bottom:1.5rem}
-.main-header h1{font-size:1.4rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main-header{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,360px) auto;align-items:end;gap:1rem;margin-bottom:1.6rem}
+.main-header h1{font-size:clamp(1.8rem,3vw,2.65rem);font-weight:850;line-height:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .search-tools{display:flex;flex-direction:column;gap:.4rem;min-width:0}
-.search-mode-toggle{display:inline-flex;align-self:flex-end;border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
+.search-mode-toggle{display:inline-flex;align-self:flex-end;border:1px solid var(--border);border-radius:9px;background:rgba(255,253,248,.82);overflow:hidden;box-shadow:0 4px 12px rgba(70,55,36,.05)}
 .search-mode-toggle button{min-height:32px;padding:.35rem .7rem;border:none;background:transparent;color:var(--mute);font-size:.75rem;font-weight:700;cursor:pointer}
-.search-mode-toggle button.active{background:var(--accent2);color:var(--fg)}
+.search-mode-toggle button.active{background:var(--sage);color:#243c2c}
 .search-mode-toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.search-input{width:100%;min-height:44px;padding:.65rem .875rem;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);font-size:.875rem}
-.search-input:focus{outline:2px solid var(--accent);border-color:transparent}
-.upload-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;padding:.65rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.875rem;font-weight:600;cursor:pointer;white-space:nowrap}
-.upload-btn:hover{background:#a93226}
+.search-input{width:100%;min-height:46px;padding:.72rem .95rem;border:1px solid var(--border);border-radius:9px;background:#fffdf8;color:var(--fg);font-size:.9rem;box-shadow:0 8px 24px rgba(70,55,36,.06)}
+.search-input:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.upload-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:46px;padding:.72rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.9rem;font-weight:750;cursor:pointer;white-space:nowrap;box-shadow:0 12px 24px rgba(182,66,50,.22)}
+.upload-btn:hover{background:var(--accent-dark)}
 .upload-btn svg{width:16px;height:16px}
 
 /* Grid */
-.recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
-.recipe-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative}
-.recipe-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-2px)}
-.recipe-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#f0ece4}
-.recipe-card .card-body{padding:.75rem}
-.recipe-card .card-name{font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recipe-card .card-date{font-size:.7rem;color:var(--mute);margin-top:.2rem}
-.recipe-card .card-meta{font-size:.7rem;color:var(--mute);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1.05rem}
+.recipe-card{background:var(--card);border:1px solid rgba(222,214,202,.92);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .16s,transform .16s,border-color .16s;position:relative;box-shadow:0 8px 22px rgba(70,55,36,.07)}
+.recipe-card:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#cbbba7}
+.recipe-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#e9e1d5}
+.recipe-card .card-body{padding:.82rem .85rem .9rem}
+.recipe-card .card-name{font-size:.95rem;font-weight:760;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recipe-card .card-date{font-size:.74rem;color:var(--soft);margin-top:.28rem}
+.recipe-card .card-meta{font-size:.74rem;color:var(--mute);margin-top:.32rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recipe-card .card-menu{position:absolute;top:.5rem;right:.5rem;opacity:0;transition:opacity .15s;display:flex;gap:.25rem}
 .recipe-card:hover .card-menu{opacity:1}
-.card-menu button{background:rgba(255,255,255,.92);border:none;border-radius:6px;min-width:34px;min-height:34px;padding:4px 7px;cursor:pointer;font-size:.75rem;color:var(--fg);box-shadow:0 1px 6px rgba(0,0,0,.12)}
+.card-menu button{background:rgba(255,253,248,.94);border:1px solid rgba(222,214,202,.7);border-radius:8px;min-width:34px;min-height:34px;padding:4px 7px;cursor:pointer;font-size:.75rem;color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.16)}
 .card-menu button:hover{background:#fff}
 @media (hover:none){.recipe-card .card-menu{opacity:1}}
 
 /* Empty */
-.empty{text-align:center;padding:4rem 2rem;color:var(--mute)}
+.empty{text-align:center;padding:4.2rem 2rem;color:var(--mute);background:rgba(255,253,248,.62);border:1px dashed #d7ccbe;border-radius:14px}
 .empty svg{width:48px;height:48px;margin:0 auto 1rem;opacity:.35}
 .empty p{font-size:.9375rem}
 
 /* Modals */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem}
 .overlay.hidden{display:none}
-.modal{background:#fff;border-radius:16px;padding:1.75rem;width:100%;max-width:420px;max-height:calc(100dvh - 2rem);overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-.modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1.25rem}
+.modal{background:#fffdf8;border:1px solid rgba(255,255,255,.55);border-radius:16px;padding:1.75rem;width:100%;max-width:440px;max-height:calc(100dvh - 2rem);overflow:auto;box-shadow:0 28px 80px rgba(0,0,0,.28)}
+.modal h3{font-size:1.2rem;font-weight:800;margin-bottom:1.25rem}
 .modal label{display:block;font-size:.8125rem;font-weight:600;color:var(--mute);margin-bottom:.375rem;margin-top:.875rem}
 .modal label:first-of-type{margin-top:0}
-.modal input,.modal select{width:100%;min-height:44px;padding:.625rem .875rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;background:#faf8f5;color:var(--fg)}
-.modal input:focus,.modal select:focus{outline:2px solid var(--accent);border-color:transparent}
-.upload-area{border:2px dashed var(--border);border-radius:10px;min-height:150px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;background:#faf8f5;margin-top:.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.upload-area:hover,.upload-area.drag{border-color:var(--accent);background:#fdf6f0}
+.modal input,.modal select{width:100%;min-height:44px;padding:.625rem .875rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;color:var(--fg)}
+.modal input:focus,.modal select:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.upload-area{border:2px dashed #cbbba7;border-radius:12px;min-height:164px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s; background:#f8f3ea;margin-top:.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.upload-area:hover,.upload-area.drag{border-color:var(--accent);background:#fff4ee}
 .upload-area img{max-height:180px;max-width:100%;border-radius:8px;margin-top:.75rem}
 .upload-area p{font-size:.8125rem;color:var(--mute)}
 .modal-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
 .btn{min-height:44px;padding:.6rem 1.1rem;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;border:none}
 .btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover{background:#a93226}
-.btn-secondary{background:#f0ece4;color:var(--fg)}
+.btn-primary:hover{background:var(--accent-dark)}
+.btn-secondary{background:#efe7dc;color:var(--fg)}
 .btn-secondary:hover{background:#e5e1da}
 .btn-danger{background:#fee2e2;color:#991b1b}
 .btn-danger:hover{background:#fecaca}
@@ -100,8 +106,8 @@ button{touch-action:manipulation}
 .lightbox.hidden{display:none}
 .recipe-detail{width:min(1100px,100%);max-height:92vh;max-height:92dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:1rem;align-items:stretch}
 .recipe-detail img{width:100%;height:100%;max-height:92vh;max-height:92dvh;border-radius:10px;object-fit:contain;background:#111}
-.recipe-text-panel{background:#fff;color:var(--fg);border-radius:10px;padding:1rem;overflow:auto}
-.recipe-text-panel h2{font-size:1.1rem;margin-bottom:.75rem}
+.recipe-text-panel{background:#fffdf8;color:var(--fg);border-radius:10px;padding:1.15rem;overflow:auto}
+.recipe-text-panel h2{font-size:1.25rem;line-height:1.15;margin-bottom:.75rem}
 .recipe-text-panel h3{font-size:.8rem;text-transform:uppercase;color:var(--mute);margin:1rem 0 .4rem;letter-spacing:.04em}
 .recipe-text-panel ul,.recipe-text-panel ol{padding-left:1.2rem;font-size:.9rem;line-height:1.45}
 .recipe-text-panel li+li{margin-top:.25rem}
@@ -123,7 +129,7 @@ button{touch-action:manipulation}
   .sidebar-header h2{font-size:1rem}
   .folder-list{display:flex;gap:.5rem;overflow-x:auto;overflow-y:hidden;max-height:none;padding:.65rem 1rem .75rem;scroll-padding:1rem;-webkit-overflow-scrolling:touch}
   .folder-list::-webkit-scrollbar{display:none}
-  .folder-item{flex:0 0 auto;max-width:220px;border:1px solid var(--border);border-radius:999px;background:#fff;padding:.45rem .75rem}
+  .folder-item{flex:0 0 auto;max-width:220px;border:1px solid var(--border);border-radius:999px;background:#fffdf8;padding:.45rem .75rem;box-shadow:none}
   .folder-item.active{border-color:#d3b88d}
   .folder-item .folder-name{max-width:140px}
   .folder-item .folder-actions{display:none}
@@ -140,7 +146,7 @@ button{touch-action:manipulation}
   .empty{padding:3rem 1rem}
   .overlay{align-items:flex-end;padding:0}
   .modal{max-width:none;max-height:min(92dvh,720px);border-radius:18px 18px 0 0;padding:1.25rem 1rem calc(1rem + env(safe-area-inset-bottom))}
-  .modal-actions{position:sticky;bottom:-1rem;background:#fff;padding-top:.75rem;margin-left:-1rem;margin-right:-1rem;padding-left:1rem;padding-right:1rem}
+  .modal-actions{position:sticky;bottom:-1rem;background:#fffdf8;padding-top:.75rem;margin-left:-1rem;margin-right:-1rem;padding-left:1rem;padding-right:1rem}
   .modal-actions .btn{flex:1}
   .lightbox{align-items:flex-start;overflow:auto;padding:calc(3.75rem + env(safe-area-inset-top)) .75rem calc(.75rem + env(safe-area-inset-bottom))}
   .recipe-detail{grid-template-columns:1fr;width:100%;max-height:none;overflow:visible;gap:.75rem}
@@ -207,7 +213,7 @@ button{touch-action:manipulation}
     <h3>Add Recipe Photo</h3>
     <label>Photo</label>
     <div class="upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()"
-         ondragover="e=>{e.preventDefault();this.classList.add('drag')}"
+         ondragover="handleDragOver(event)"
          ondragleave="this.classList.remove('drag')"
          ondrop="handleDrop(event)">
       <p>Tap to take a photo or choose from library</p>
@@ -221,7 +227,7 @@ button{touch-action:manipulation}
       <select id="recipeFolderSelect" style="flex:1"></select>
       <button type="button" class="btn btn-secondary" style="white-space:nowrap;padding:.6rem .75rem;font-size:.8rem" onclick="toggleInlineNewFolder()">+ New</button>
     </div>
-    <div id="inlineNewFolder" style="display:none;margin-top:.5rem;display:none">
+    <div id="inlineNewFolder" style="display:none;margin-top:.5rem">
       <input type="text" id="inlineFolderName" placeholder="Folder name" maxlength="60" style="width:100%">
       <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
         <button type="button" class="btn btn-secondary" onclick="cancelInlineFolder()">Cancel</button>
@@ -522,6 +528,10 @@ function handleFile(file) {
   prev.src = URL.createObjectURL(file);
   prev.style.display = 'block';
   document.getElementById('uploadArea').querySelector('p').textContent = file.name;
+}
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadArea').classList.add('drag');
 }
 function handleDrop(e) {
   e.preventDefault();
