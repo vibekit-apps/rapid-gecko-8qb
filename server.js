@@ -3,6 +3,9 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 
+process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err.stack || err); });
+process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); });
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
@@ -12,6 +15,16 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 // Ensure dirs exist
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// Test writability at startup
+try {
+  const testFile = DATA_FILE + '.tmp';
+  fs.writeFileSync(testFile, 'ok', 'utf8');
+  fs.unlinkSync(testFile);
+  console.log('Write test OK:', DATA_FILE);
+} catch (e) {
+  console.error('Write test FAILED:', e.message, '— uid:', process.getuid?.(), 'gid:', process.getgid?.());
+}
 
 // Load/save helpers
 function loadData() {
@@ -34,6 +47,18 @@ const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 app.use(express.json());
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Diagnostic endpoint
+app.get('/api/diag', (req, res) => {
+  const testFile = DATA_FILE + '.tmp';
+  try {
+    fs.writeFileSync(testFile, 'ok', 'utf8');
+    fs.unlinkSync(testFile);
+    res.json({ writable: true, data: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+  } catch (e) {
+    res.json({ writable: false, error: e.message, data: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+  }
+});
 
 // --- Folders ---
 app.get('/api/folders', (req, res) => {

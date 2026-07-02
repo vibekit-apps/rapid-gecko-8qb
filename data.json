@@ -2,7 +2,11 @@
   "folders": [
     {
       "id": "1782926638554",
-      "name": "Sweets"
+      "name": "Renamed"
+    },
+    {
+      "id": "1782927464244",
+      "name": "TestFolder"
     }
   ],
   "recipes": []
