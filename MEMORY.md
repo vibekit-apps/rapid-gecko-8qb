@@ -16,6 +16,7 @@
 - Use `POST` for folder and recipe update actions. `PATCH` is unreliable behind the app proxy and causes save regressions.
 - Folder rename saves are supported over POST, PATCH, and PUT; the server binds to `0.0.0.0` and writes `data.json` atomically to avoid proxy-facing failures during saves.
 - Local smoke tests can set `DATA_FILE` to avoid writing test folders into live-backed `data.json`; save temp files include process/time suffixes.
+- Folder rename UI sends the new name in the query string with a bodyless `POST` to avoid mobile/proxy aborted JSON-body requests causing 502s.
 
 ## How to Use Memory
 - Update this file with important decisions, architecture choices, and lessons

@@ -345,7 +345,7 @@ async function saveFolder() {
   saveButton.textContent = 'Saving...';
   try {
     if (folderId) {
-      const r = await fetch(`/api/folders/${folderId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      const r = await fetch(`/api/folders/${folderId}?name=${encodeURIComponent(name)}`, { method:'POST' });
       const f = await readApiResponse(r);
       const idx = folders.findIndex(x => x.id === folderId);
       if (idx >= 0) folders[idx] = f;
