@@ -37,64 +37,12 @@ function saveData(d) {
   catch (e) { console.error('saveData error:', e.message); throw e; }
 }
 
-function renameFolder(req, res, name) {
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
-  const d = loadData();
-  const f = d.folders.find(x => x.id === req.params.id);
-  if (!f) return res.status(404).json({ error: 'Not found' });
-  f.name = name.trim();
-  saveData(d);
-  res.json(f);
-}
-
-function parseFolderRename(req, res) {
-  let rawBody = '';
-  let finished = false;
-
-  const fail = (status, message) => {
-    if (finished || res.headersSent) return;
-    finished = true;
-    res.status(status).json({ error: message });
-  };
-
-  req.setEncoding('utf8');
-  req.on('data', chunk => {
-    rawBody += chunk;
-    if (rawBody.length > 4096) fail(413, 'Folder name is too long');
-  });
-  req.on('aborted', () => fail(400, 'Rename request was interrupted'));
-  req.on('error', () => fail(400, 'Rename request failed'));
-  req.on('end', () => {
-    if (finished) return;
-    finished = true;
-    let name = req.query?.name;
-    try {
-      if (!name && rawBody.trim()) {
-        const parsed = JSON.parse(rawBody);
-        name = parsed?.name;
-      }
-    } catch (e) {
-      res.status(400).json({ error: 'Invalid rename request' });
-      return;
-    }
-
-    try {
-      renameFolder(req, res, name);
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-}
-
 // Multer — store in uploads/
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'))
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
-
-app.post('/api/folders/:id', parseFolderRename);
-app.patch('/api/folders/:id', parseFolderRename);
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -129,6 +77,21 @@ app.post('/api/folders', (req, res) => {
     res.json(folder);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+const updateFolder = (req, res) => {
+  try {
+    const name = req.body?.name ?? req.query?.name;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
+    const d = loadData();
+    const f = d.folders.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Not found' });
+    f.name = String(name).trim();
+    saveData(d);
+    res.json(f);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+};
+app.post('/api/folders/:id', updateFolder);
+app.patch('/api/folders/:id', updateFolder);
 
 app.delete('/api/folders/:id', (req, res) => {
   try {
