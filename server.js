@@ -9,7 +9,7 @@ process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); })
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
-const DATA_FILE = path.join(DATA_DIR, 'data.json');
+const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, 'data.json');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 
 // Ensure dirs exist
@@ -43,8 +43,8 @@ function loadData() {
 }
 function saveData(d) {
   try {
-    const tmp = DATA_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+    const tmp = `${DATA_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(d, null, 2), 'utf8');
     fs.renameSync(tmp, DATA_FILE);
   }
   catch (e) { console.error('saveData error:', e.message); throw e; }
@@ -57,10 +57,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-app.use(express.json());
+app.use(express.json({ limit: '128kb' }));
 app.use((err, req, res, next) => {
-  if (req.path && req.path.startsWith('/api/')) {
-    res.status(err.status || 400).json({ error: 'Invalid request body' });
+  const requestPath = req.originalUrl || req.url || req.path || '';
+  if (requestPath.startsWith('/api/')) {
+    if (err.type === 'request.aborted' || err.code === 'ECONNABORTED') {
+      if (!res.headersSent) res.status(400).json({ error: 'Request was interrupted. Please try again.' });
+      return;
+    }
+    if (!res.headersSent) res.status(err.status || 400).json({ error: 'Invalid request body' });
     return;
   }
   next(err);
@@ -100,7 +105,8 @@ app.post('/api/folders', (req, res) => {
 
 const updateFolder = (req, res) => {
   try {
-    const name = req.body?.name ?? req.query?.name;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const name = body.name ?? req.query?.name;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
     const d = loadData();
     const f = d.folders.find(x => x.id === req.params.id);
