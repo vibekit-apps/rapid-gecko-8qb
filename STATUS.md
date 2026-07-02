@@ -1,5 +1,5 @@
 # STATUS.md — Live Infrastructure (auto-updated)
-_Last updated: 2026-07-02T23:13:00.292Z_
+_Last updated: 2026-07-02T23:24:52.586Z_
 
 ## Container
 - **Name**: vk-familyrecipies
@@ -13,8 +13,8 @@ _Last updated: 2026-07-02T23:13:00.292Z_
 - **Name**: familyrecipies
 - **Subdomain**: familyrecipies.vibekit.bot
 - **DB Status**: running
-- **Health Failures**: 0
-- **Last Healthy**: 2026-07-02T23:11:20.102+00:00
+- **Health Failures**: 1
+- **Last Healthy**: 2026-07-02T23:21:50.696+00:00
 
 
 ## Host
