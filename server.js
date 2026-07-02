@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { recognize } = require('tesseract.js');
 
 process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err.stack || err); });
 process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); });
@@ -74,6 +75,55 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'))
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+function cleanOcrText(text) {
+  return String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractIngredientCandidates(text) {
+  const measurementWords = [
+    'cup', 'cups', 'tbsp', 'tablespoon', 'tablespoons', 'tsp', 'teaspoon', 'teaspoons',
+    'oz', 'ounce', 'ounces', 'lb', 'lbs', 'pound', 'pounds', 'gram', 'grams', 'g', 'kg',
+    'ml', 'l', 'pinch', 'dash', 'clove', 'cloves', 'can', 'cans', 'package', 'packages'
+  ];
+  const instructionWords = /\b(bake|boil|cook|combine|fold|heat|mix|preheat|pour|serve|stir|whisk)\b/i;
+  const amountPattern = /^(\d+|[\u00bc\u00bd\u00be\u2153\u2154\u215b\u215c\u215d\u215e]|\d+\s*\/\s*\d+|\d+\.\d+)/;
+
+  const lines = cleanOcrText(text)
+    .split('\n')
+    .map(line => line.replace(/^[\-*\u2022\s]+/, '').trim())
+    .filter(line => line.length >= 3 && line.length <= 120);
+
+  const ingredients = lines.filter(line => {
+    const lower = line.toLowerCase();
+    const hasAmount = amountPattern.test(lower);
+    const hasMeasure = measurementWords.some(word => new RegExp(`\\b${word}\\b`, 'i').test(lower));
+    const looksLikeInstruction = instructionWords.test(lower) && lower.split(/\s+/).length > 8;
+    return (hasAmount || hasMeasure) && !looksLikeInstruction;
+  });
+
+  return [...new Set(ingredients)].slice(0, 80);
+}
+
+async function readRecipeTextFromImage(filePath) {
+  try {
+    const result = await recognize(filePath, 'eng', { cachePath: __dirname });
+    const text = cleanOcrText(result?.data?.text || '');
+    return {
+      text,
+      ingredients: extractIngredientCandidates(text),
+      status: text ? 'complete' : 'empty',
+      error: null
+    };
+  } catch (e) {
+    console.error('OCR failed:', e.message);
+    return { text: '', ingredients: [], status: 'failed', error: e.message };
+  }
+}
 
 function parseJsonBody(req, res, next) {
   const contentType = req.headers['content-type'] || '';
@@ -198,15 +248,20 @@ app.get('/api/recipes', (req, res) => {
   res.json(d.recipes);
 });
 
-app.post('/api/recipes', upload.single('photo'), (req, res) => {
+app.post('/api/recipes', upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Photo required' });
     const d = loadData();
+    const ocr = await readRecipeTextFromImage(req.file.path);
     const recipe = {
       id: Date.now().toString(),
       folderId: req.body.folderId || null,
       filename: req.file.filename,
       name: req.body.name || 'Untitled Recipe',
+      ocrText: ocr.text,
+      ingredients: ocr.ingredients,
+      ocrStatus: ocr.status,
+      ocrError: ocr.error,
       createdAt: new Date().toISOString()
     };
     d.recipes.push(recipe);

@@ -4,3 +4,6 @@
 .vibekit/
 memory/
 node_modules/
+data.json
+data.json.*.tmp
+uploads/

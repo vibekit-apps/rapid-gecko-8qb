@@ -39,7 +39,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
 /* Main header */
 .main-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
 .main-header h1{font-size:1.4rem;font-weight:700;flex:1}
-.search-input{width:min(100%,280px);padding:.65rem .875rem;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);font-size:.875rem}
+.search-input{width:min(100%,320px);padding:.65rem .875rem;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);font-size:.875rem}
 .search-input:focus{outline:2px solid var(--accent);border-color:transparent}
 .upload-btn{display:inline-flex;align-items:center;gap:.5rem;padding:.65rem 1.1rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:.875rem;font-weight:600;cursor:pointer}
 .upload-btn:hover{background:#a93226}
@@ -53,6 +53,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
 .recipe-card .card-body{padding:.75rem}
 .recipe-card .card-name{font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recipe-card .card-date{font-size:.7rem;color:var(--mute);margin-top:.2rem}
+.recipe-card .card-meta{font-size:.7rem;color:var(--mute);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recipe-card .card-menu{position:absolute;top:.5rem;right:.5rem;opacity:0;transition:opacity .15s}
 .recipe-card:hover .card-menu{opacity:1}
 .card-menu button{background:rgba(255,255,255,.9);border:none;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:.75rem;color:var(--fg)}
@@ -120,7 +121,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
   <main class="main">
     <div class="main-header">
       <h1 id="mainTitle">All Recipes</h1>
-      <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search recipes" autocomplete="off">
+      <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search recipes or ingredients" autocomplete="off">
       <button class="upload-btn" onclick="openAddRecipe()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Photo
@@ -172,7 +173,7 @@ body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('recipeModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveRecipe()">Save</button>
+      <button class="btn btn-primary" id="recipeSaveButton" onclick="saveRecipe()">Save</button>
     </div>
   </div>
 </div>
@@ -231,6 +232,14 @@ function getSortedFolders() {
 
 function getSearchTerms() {
   return searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+}
+
+function getRecipeSearchText(recipe) {
+  return [
+    recipe.name,
+    recipe.ocrText,
+    Array.isArray(recipe.ingredients) ? recipe.ingredients.join(' ') : ''
+  ].filter(Boolean).join(' ').toLowerCase();
 }
 
 async function init() {
@@ -309,8 +318,8 @@ function renderGrid() {
   let visible;
   if (searchTerms.length) {
     visible = recipes.filter(r => {
-      const name = String(r.name || '').toLowerCase();
-      return searchTerms.some(term => name.includes(term));
+      const searchable = getRecipeSearchText(r);
+      return searchTerms.every(term => searchable.includes(term));
     });
     title.textContent = 'Search Results';
   } else if (activeFolderId === 'all') {
@@ -345,6 +354,8 @@ function renderGrid() {
       <div class="card-body">
         <div class="card-name">${esc(r.name)}</div>
         <div class="card-date">${new Date(r.createdAt).toLocaleDateString()}</div>
+        ${Array.isArray(r.ingredients) && r.ingredients.length ? `<div class="card-meta">${esc(r.ingredients.slice(0, 2).join(' / '))}</div>` : ''}
+        ${r.ocrStatus === 'failed' ? '<div class="card-meta">Text scan failed</div>' : ''}
       </div>
     </div>`).join('');
 }
@@ -449,10 +460,13 @@ async function saveRecipe() {
   if (!selectedFile) { alert('Please choose a photo first.'); return; }
   const name = document.getElementById('recipeNameInput').value.trim() || 'Untitled Recipe';
   const folderId = document.getElementById('recipeFolderSelect').value;
+  const saveButton = document.getElementById('recipeSaveButton');
   const fd = new FormData();
   fd.append('photo', selectedFile);
   fd.append('name', name);
   if (folderId) fd.append('folderId', folderId);
+  saveButton.disabled = true;
+  saveButton.textContent = 'Reading...';
   try {
     const r = await fetch('/api/recipes', { method:'POST', body: fd });
     recipes.push(await readApiResponse(r));
@@ -460,6 +474,9 @@ async function saveRecipe() {
     render();
   } catch (e) {
     alert('Could not save recipe: ' + e.message);
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save';
   }
 }
 

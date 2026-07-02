@@ -6,6 +6,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "tesseract.js": "^5.1.1"
   }
 }
