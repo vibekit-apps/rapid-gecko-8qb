@@ -313,7 +313,7 @@ async function saveFolder() {
   if (!name) return;
   try {
     if (editingFolderId) {
-      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+      const r = await fetch(`/api/folders/${editingFolderId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
       if (!r.ok) throw new Error(await r.text());
       const f = await r.json();
       const idx = folders.findIndex(x => x.id === editingFolderId);
@@ -388,7 +388,7 @@ function openMove(id) {
 }
 async function moveRecipe() {
   const folderId = document.getElementById('moveFolderSelect').value || null;
-  await fetch(`/api/recipes/${pendingMoveId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
+  await fetch(`/api/recipes/${pendingMoveId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({folderId}) });
   const r = recipes.find(x => x.id === pendingMoveId);
   if (r) r.folderId = folderId;
   closeModal('moveModal');
@@ -404,7 +404,7 @@ function openRename(id, name) {
 async function doRename() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) return;
-  await fetch(`/api/recipes/${pendingRenameId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+  await fetch(`/api/recipes/${pendingRenameId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
   const r = recipes.find(x => x.id === pendingRenameId);
   if (r) r.name = name;
   closeModal('renameModal');

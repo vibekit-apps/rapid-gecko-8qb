@@ -78,7 +78,7 @@ app.post('/api/folders', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/folders/:id', (req, res) => {
+const patchFolder = (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
@@ -89,7 +89,7 @@ app.patch('/api/folders/:id', (req, res) => {
     saveData(d);
     res.json(f);
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
+};
 
 app.delete('/api/folders/:id', (req, res) => {
   try {
@@ -124,7 +124,10 @@ app.post('/api/recipes', upload.single('photo'), (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/recipes/:id', (req, res) => {
+app.post('/api/folders/:id', patchFolder);
+app.patch('/api/folders/:id', patchFolder);
+
+const patchRecipe = (req, res) => {
   try {
     const d = loadData();
     const r = d.recipes.find(x => x.id === req.params.id);
@@ -134,7 +137,9 @@ app.patch('/api/recipes/:id', (req, res) => {
     saveData(d);
     res.json(r);
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
+};
+app.post('/api/recipes/:id', patchRecipe);
+app.patch('/api/recipes/:id', patchRecipe);
 
 app.delete('/api/recipes/:id', (req, res) => {
   try {
