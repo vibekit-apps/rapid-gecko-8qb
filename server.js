@@ -134,8 +134,55 @@ function getFolders() {
   return sortFolders(all('SELECT * FROM folders').map(rowToFolder));
 }
 
-function getRecipes() {
-  return all('SELECT * FROM recipes ORDER BY created_at DESC, id DESC').map(rowToRecipe);
+function escapeSqlLike(value) {
+  return String(value).replace(/[\\%_]/g, char => `\\${char}`);
+}
+
+function getDescendantFolderIdsFromDb(folderId) {
+  if (folderId === 'none') return ['none'];
+  const ids = new Set([String(folderId)]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    all('SELECT id, parent_id FROM folders').forEach(folder => {
+      if (folder.parent_id && ids.has(String(folder.parent_id)) && !ids.has(String(folder.id))) {
+        ids.add(String(folder.id));
+        changed = true;
+      }
+    });
+  }
+  return [...ids];
+}
+
+function getRecipes(options = {}) {
+  const where = [];
+  const params = [];
+  const folderId = options.folderId ? String(options.folderId) : '';
+
+  if (folderId && folderId !== 'all') {
+    if (folderId === 'none') {
+      where.push('(folder_id IS NULL OR folder_id = \'\')');
+    } else {
+      const folderIds = getDescendantFolderIdsFromDb(folderId);
+      where.push(`folder_id IN (${folderIds.map(() => '?').join(', ')})`);
+      params.push(...folderIds);
+    }
+  }
+
+  const terms = String(options.search || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  terms.forEach(term => {
+    const like = `%${escapeSqlLike(term)}%`;
+    where.push(`(
+      lower(name) LIKE ? ESCAPE '\\'
+      OR lower(ocr_text) LIKE ? ESCAPE '\\'
+      OR lower(ingredients_json) LIKE ? ESCAPE '\\'
+      OR lower(steps_json) LIKE ? ESCAPE '\\'
+    )`);
+    params.push(like, like, like, like);
+  });
+
+  const sql = `SELECT * FROM recipes${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC`;
+  return all(sql, params).map(rowToRecipe);
 }
 
 function getRecipeStoreRowCount() {
@@ -634,7 +681,10 @@ app.delete('/api/folders/:id', (req, res) => {
 });
 
 app.get('/api/recipes', (req, res) => {
-  res.json(getRecipes());
+  res.json(getRecipes({
+    search: req.query.search || req.query.q || '',
+    folderId: req.query.folderId || ''
+  }));
 });
 
 app.post('/api/recipes', upload.single('photo'), async (req, res) => {
