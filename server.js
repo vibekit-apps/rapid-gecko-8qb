@@ -9,11 +9,12 @@ process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err.stack 
 process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
-const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, 'data.json');
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'recipes.sqlite');
+const LEGACY_DATA_FILE = process.env.LEGACY_DATA_FILE || path.join(DATA_DIR, 'data.json');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+const LEGACY_JSON_IMPORT_META_KEY = 'legacy_json_import_status';
 const OCR_ALGORITHM_VERSION = '3';
 const OCR_RECIPE_TERMS = [
   'bake', 'boil', 'broil', 'butter', 'chill', 'combine', 'cook', 'cream',
@@ -135,6 +136,12 @@ function getFolders() {
 
 function getRecipes() {
   return all('SELECT * FROM recipes ORDER BY created_at DESC, id DESC').map(rowToRecipe);
+}
+
+function getRecipeStoreRowCount() {
+  const folderCount = Number(one('SELECT COUNT(*) AS count FROM folders')?.count || 0);
+  const recipeCount = Number(one('SELECT COUNT(*) AS count FROM recipes')?.count || 0);
+  return folderCount + recipeCount;
 }
 
 function getRecipe(id) {
@@ -298,9 +305,9 @@ async function readRecipeTextFromImage(filePath) {
 }
 
 function readJsonSeed() {
-  if (!fs.existsSync(DATA_FILE)) return { folders: [], recipes: [] };
+  if (!fs.existsSync(LEGACY_DATA_FILE)) return { folders: [], recipes: [] };
   try {
-    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(LEGACY_DATA_FILE, 'utf8'));
     return {
       folders: Array.isArray(data.folders) ? data.folders : [],
       recipes: Array.isArray(data.recipes) ? data.recipes : []
@@ -312,11 +319,27 @@ function readJsonSeed() {
 }
 
 function migrateJsonSeed() {
-  const existing = one('SELECT COUNT(*) AS count FROM folders')?.count + one('SELECT COUNT(*) AS count FROM recipes')?.count;
-  if (existing > 0) return;
+  if (getMeta(LEGACY_JSON_IMPORT_META_KEY)) return;
+
+  const existing = getRecipeStoreRowCount();
+  if (existing > 0) {
+    setMeta(LEGACY_JSON_IMPORT_META_KEY, JSON.stringify({
+      status: 'skipped',
+      reason: 'sqlite-already-populated',
+      at: new Date().toISOString()
+    }));
+    return;
+  }
 
   const seed = readJsonSeed();
-  if (!seed.folders.length && !seed.recipes.length) return;
+  if (!seed.folders.length && !seed.recipes.length) {
+    setMeta(LEGACY_JSON_IMPORT_META_KEY, JSON.stringify({
+      status: 'skipped',
+      reason: 'no-legacy-json-data',
+      at: new Date().toISOString()
+    }));
+    return;
+  }
 
   run('BEGIN TRANSACTION');
   try {
@@ -345,6 +368,12 @@ function migrateJsonSeed() {
         recipe.createdAt || new Date().toISOString()
       ]);
     }
+    setMeta(LEGACY_JSON_IMPORT_META_KEY, JSON.stringify({
+      status: 'imported',
+      folders: seed.folders.length,
+      recipes: seed.recipes.length,
+      at: new Date().toISOString()
+    }));
     run('COMMIT');
     persistDb();
     console.log(`Migrated ${seed.folders.length} folders and ${seed.recipes.length} recipes into SQLite`);
@@ -531,9 +560,9 @@ app.get('/api/diag', (req, res) => {
   try {
     fs.writeFileSync(testFile, 'ok', 'utf8');
     fs.unlinkSync(testFile);
-    res.json({ writable: true, database: DB_FILE, jsonSeed: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+    res.json({ writable: true, database: DB_FILE, legacyJsonImport: getMeta(LEGACY_JSON_IMPORT_META_KEY), uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
   } catch (e) {
-    res.json({ writable: false, error: e.message, database: DB_FILE, jsonSeed: DATA_FILE, uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
+    res.json({ writable: false, error: e.message, database: DB_FILE, legacyJsonImport: getMeta(LEGACY_JSON_IMPORT_META_KEY), uploads: UPLOADS_DIR, uid: process.getuid?.(), gid: process.getgid?.() });
   }
 });
 
