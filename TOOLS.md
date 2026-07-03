@@ -1,4 +1,4 @@
-# TOOLS.md — familyrecipies
+# TOOLS.md — familyrecipes
 
 ## What you have
 - Shell: node, npm, git, curl (sandboxed — no docker/aws/ssh)

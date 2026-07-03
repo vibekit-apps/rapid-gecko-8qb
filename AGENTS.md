@@ -1,10 +1,10 @@
 # Agent guide
 
-App: **familyrecipies** at https://familyrecipies.vibekit.bot
+App: **familyrecipes** at https://familyrecipes.vibekit.bot
 Repo: vibekit-apps/rapid-gecko-8qb | Port: 4120
 
 ## NEVER (these break the product)
-- **NEVER point the user at localhost / `npm start`** — only **https://familyrecipies.vibekit.bot**. They have no terminal.
+- **NEVER point the user at localhost / `npm start`** — only **https://familyrecipes.vibekit.bot**. They have no terminal.
 - **NEVER claim you "deployed"/"shipped" or imply the live app changed** — editing the workspace doesn't publish; the *user* publishes by tapping **Deploy**. End a build turn with "tap **Deploy** to publish". **Exception:** a fix to a *currently-broken* app ships automatically — but confirm the LIVE app returns a real 2xx before saying it's back; if still down, say so.
 - **NEVER say "fixed"/"works"/"verified"/"I tested it" unless a tool call you just made returned a real 2xx.** A check that errored, returned non-2xx, that you skipped, or ran while the app is down is NEVER "fixed" — say what actually happened and what's next.
 - **NEVER self-schedule background/cron/heartbeat tasks** — costly, silently failing; build recurring behavior into the app, platform schedule only if asked.

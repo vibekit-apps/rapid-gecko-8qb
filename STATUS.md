@@ -1,8 +1,8 @@
 # STATUS.md — Live Infrastructure (auto-updated)
-_Last updated: 2026-07-02T23:41:35.060Z_
+_Last updated: 2026-07-02T23:58:32.926Z_
 
 ## Container
-- **Name**: vk-familyrecipies
+- **Name**: vk-familyrecipes
 - **Status**: exited
 - **Started**: 2026-07-02T16:52:18.300024718Z
 - **Resources**: 0.00% CPU | 0B / 0B | 0B / 0B net
@@ -10,15 +10,15 @@ _Last updated: 2026-07-02T23:41:35.060Z_
 - **Port**: 4120
 
 ## App
-- **Name**: familyrecipies
-- **Subdomain**: familyrecipies.vibekit.bot
+- **Name**: familyrecipes
+- **Subdomain**: familyrecipes.vibekit.bot
 - **DB Status**: running
-- **Health Failures**: 1
-- **Last Healthy**: 2026-07-02T23:37:50.309+00:00
+- **Health Failures**: 0
+- **Last Healthy**: 2026-07-02T23:58:25.47+00:00
 
 
 ## Host
-- **Disk**: 22G used / 30G total (72% full)
+- **Disk**: 22G used / 30G total (71% full)
 
 ## Recent Logs (last 10 lines)
 ```
