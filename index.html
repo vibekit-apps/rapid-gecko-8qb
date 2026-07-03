@@ -51,11 +51,12 @@ button{touch-action:manipulation}
 .main-header{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,360px) auto;align-items:end;gap:1rem;margin-bottom:1.6rem}
 .main-header h1{font-size:clamp(1.8rem,3vw,2.65rem);font-weight:850;line-height:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .search-tools{display:flex;flex-direction:column;gap:.4rem;min-width:0}
-.search-scope-toggle{display:inline-flex;align-self:flex-end;border:1px solid var(--border);border-radius:9px;background:rgba(255,253,248,.82);overflow:hidden;box-shadow:0 4px 12px rgba(70,55,36,.05)}
-.search-scope-toggle button{min-height:32px;padding:.35rem .7rem;border:none;background:transparent;color:var(--mute);font-size:.75rem;font-weight:700;cursor:pointer}
-.search-scope-toggle button.active{background:var(--sage);color:#243c2c}
-.search-scope-toggle button:disabled{opacity:.45;cursor:not-allowed}
-.search-scope-toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.search-toggle-row{display:flex;justify-content:flex-end;gap:.45rem;flex-wrap:wrap}
+.search-mode-toggle,.search-scope-toggle{display:inline-flex;border:1px solid var(--border);border-radius:9px;background:rgba(255,253,248,.82);overflow:hidden;box-shadow:0 4px 12px rgba(70,55,36,.05)}
+.search-mode-toggle button,.search-scope-toggle button{min-height:32px;padding:.35rem .7rem;border:none;background:transparent;color:var(--mute);font-size:.75rem;font-weight:700;cursor:pointer}
+.search-mode-toggle button.active,.search-scope-toggle button.active{background:var(--sage);color:#243c2c}
+.search-mode-toggle button:disabled,.search-scope-toggle button:disabled{opacity:.45;cursor:not-allowed}
+.search-mode-toggle button:focus-visible,.search-scope-toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .search-box{position:relative}
 .search-input{width:100%;min-height:46px;padding:.72rem .95rem;border:1px solid var(--border);border-radius:9px;background:#fffdf8;color:var(--fg);font-size:.9rem;box-shadow:0 8px 24px rgba(70,55,36,.06)}
 .search-input.has-value{padding-right:2.7rem}
@@ -217,12 +218,18 @@ button{touch-action:manipulation}
     <div class="main-header">
       <h1 id="mainTitle">All Recipes</h1>
       <div class="search-tools">
-        <div class="search-scope-toggle" role="group" aria-label="Search scope">
-          <button type="button" class="active" id="searchAllButton" aria-pressed="true" onclick="setSearchScope('all')">All folders</button>
-          <button type="button" id="searchFolderButton" aria-pressed="false" onclick="setSearchScope('folder')">Current folder</button>
+        <div class="search-toggle-row">
+          <div class="search-mode-toggle" role="group" aria-label="Search by">
+            <button type="button" class="active" id="recipeSearchModeButton" aria-pressed="true" onclick="setSearchMode('recipe')">Recipe</button>
+            <button type="button" id="ingredientSearchModeButton" aria-pressed="false" onclick="setSearchMode('ingredients')">Ingredients</button>
+          </div>
+          <div class="search-scope-toggle" role="group" aria-label="Search scope">
+            <button type="button" class="active" id="searchAllButton" aria-pressed="true" onclick="setSearchScope('all')">All folders</button>
+            <button type="button" id="searchFolderButton" aria-pressed="false" onclick="setSearchScope('folder')">Current folder</button>
+          </div>
         </div>
         <div class="search-box">
-          <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search names, text, ingredients, steps" autocomplete="off">
+          <input class="search-input" id="recipeSearchInput" type="search" placeholder="Search recipes" autocomplete="off">
           <button type="button" class="clear-search" id="clearSearchButton" aria-label="Clear search" onclick="clearSearch()">&#x2715;</button>
         </div>
       </div>
@@ -335,6 +342,7 @@ let pendingMoveId = null;
 let pendingRenameId = null;
 let selectedFile = null;
 let searchQuery = '';
+let searchMode = 'recipe';
 let searchScope = 'all';
 let searchResults = null;
 let searchLoading = false;
@@ -418,6 +426,23 @@ function getSearchTerms() {
   return searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
 }
 
+function setSearchMode(mode) {
+  searchMode = mode === 'ingredients' ? 'ingredients' : 'recipe';
+  updateSearchModeButtons();
+  runSearch();
+}
+
+function updateSearchModeButtons() {
+  const recipeButton = document.getElementById('recipeSearchModeButton');
+  const ingredientButton = document.getElementById('ingredientSearchModeButton');
+  const searchInput = document.getElementById('recipeSearchInput');
+  recipeButton.classList.toggle('active', searchMode === 'recipe');
+  ingredientButton.classList.toggle('active', searchMode === 'ingredients');
+  recipeButton.setAttribute('aria-pressed', String(searchMode === 'recipe'));
+  ingredientButton.setAttribute('aria-pressed', String(searchMode === 'ingredients'));
+  searchInput.placeholder = searchMode === 'ingredients' ? 'Search ingredients' : 'Search recipes';
+}
+
 function setSearchScope(scope) {
   searchScope = scope === 'folder' ? 'folder' : 'all';
   updateSearchScopeButtons();
@@ -460,7 +485,7 @@ async function runSearch() {
   searchError = '';
   renderGrid();
   try {
-    const params = new URLSearchParams({ search: query });
+    const params = new URLSearchParams({ search: query, mode: searchMode });
     const folderId = getSearchFolderId();
     if (folderId) params.set('folderId', folderId);
     const response = await fetch(`/api/recipes?${params.toString()}`);
@@ -605,13 +630,15 @@ function renderGrid() {
   const clearButton = document.getElementById('clearSearchButton');
   const searchTerms = getSearchTerms();
   let visible;
+  updateSearchModeButtons();
   updateSearchScopeButtons();
   searchInput.classList.toggle('has-value', Boolean(searchQuery.trim()));
   clearButton.classList.toggle('visible', Boolean(searchQuery.trim()));
   if (searchTerms.length) {
     visible = searchResults || [];
     const scoped = getSearchFolderId();
-    title.textContent = scoped ? 'Folder Search' : 'Search Results';
+    const modeLabel = searchMode === 'ingredients' ? 'Ingredient' : 'Recipe';
+    title.textContent = scoped ? `${modeLabel} Folder Search` : `${modeLabel} Search`;
   } else if (activeFolderId === 'all') {
     visible = recipes; title.textContent = 'All Recipes';
   } else if (activeFolderId === 'none') {
@@ -626,7 +653,7 @@ function renderGrid() {
   if (searchLoading) {
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
       <h2>Searching</h2>
-      <p>Checking names, scanned text, ingredients, and steps.</p>
+      <p>${searchMode === 'ingredients' ? 'Checking extracted ingredients.' : 'Checking recipe names and scanned text.'}</p>
     </div>`;
     return;
   }
@@ -634,7 +661,7 @@ function renderGrid() {
   if (!visible.length) {
     const emptyTitle = searchError ? 'Search Failed' : searchTerms.length ? 'No Matches' : 'Start Your Recipe Box';
     const emptyText = searchTerms.length
-      ? (searchError || 'Try a broader search or switch between all folders and the current folder.')
+      ? (searchError || 'Try a broader search or switch between recipe and ingredient search.')
       : 'Save a photo, keep it in a folder, and the app will pull out recipe text when it can.';
     const actions = searchTerms.length
       ? `<button class="btn btn-secondary" onclick="clearSearch()">Clear Search</button>`

@@ -170,15 +170,20 @@ function getRecipes(options = {}) {
   }
 
   const terms = String(options.search || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const searchMode = options.mode === 'ingredients' ? 'ingredients' : 'recipe';
   terms.forEach(term => {
     const like = `%${escapeSqlLike(term)}%`;
-    where.push(`(
-      lower(name) LIKE ? ESCAPE '\\'
-      OR lower(ocr_text) LIKE ? ESCAPE '\\'
-      OR lower(ingredients_json) LIKE ? ESCAPE '\\'
-      OR lower(steps_json) LIKE ? ESCAPE '\\'
-    )`);
-    params.push(like, like, like, like);
+    if (searchMode === 'ingredients') {
+      where.push(`lower(ingredients_json) LIKE ? ESCAPE '\\'`);
+      params.push(like);
+    } else {
+      where.push(`(
+        lower(name) LIKE ? ESCAPE '\\'
+        OR lower(ocr_text) LIKE ? ESCAPE '\\'
+        OR lower(steps_json) LIKE ? ESCAPE '\\'
+      )`);
+      params.push(like, like, like);
+    }
   });
 
   const sql = `SELECT * FROM recipes${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC`;
@@ -683,7 +688,8 @@ app.delete('/api/folders/:id', (req, res) => {
 app.get('/api/recipes', (req, res) => {
   res.json(getRecipes({
     search: req.query.search || req.query.q || '',
-    folderId: req.query.folderId || ''
+    folderId: req.query.folderId || '',
+    mode: req.query.mode || ''
   }));
 });
 
