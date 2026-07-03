@@ -14,7 +14,14 @@ const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, 'data.json');
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'recipes.sqlite');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
-const OCR_ALGORITHM_VERSION = '2';
+const OCR_ALGORITHM_VERSION = '3';
+const OCR_RECIPE_TERMS = [
+  'bake', 'boil', 'broil', 'butter', 'chill', 'combine', 'cook', 'cream',
+  'cup', 'cups', 'directions', 'eggs', 'flour', 'fold', 'heat', 'ingredients',
+  'milk', 'minutes', 'mix', 'oven', 'preheat', 'recipe', 'salt', 'serve',
+  'simmer', 'sugar', 'tablespoon', 'tablespoons', 'teaspoon', 'teaspoons',
+  'vanilla', 'whisk'
+];
 
 let db;
 
@@ -218,9 +225,15 @@ function scoreOcrText(text, confidence) {
   const cleaned = cleanOcrText(text);
   const letters = (cleaned.match(/[A-Za-z]/g) || []).length;
   const words = (cleaned.match(/[A-Za-z][A-Za-z'-]{2,}/g) || []).length;
-  const recipeWords = (cleaned.match(/\b(bake|boil|cup|cups|directions?|ingredients?|mix|preheat|stir|tablespoons?|teaspoons?)\b/gi) || []).length;
+  const recipeWords = OCR_RECIPE_TERMS.reduce((total, term) => {
+    const matches = cleaned.match(new RegExp(`\\b${term}\\b`, 'gi')) || [];
+    return total + matches.length;
+  }, 0);
+  const parsed = parseRecipeText(cleaned);
+  const structuredLines = parsed.ingredients.length + parsed.steps.length;
+  const lineCount = cleaned.split('\n').filter(line => line.trim().length >= 3).length;
   const garbage = (cleaned.match(/[{}[\]|~^_=<>]/g) || []).length;
-  return (Number(confidence) || 0) + (letters * 0.2) + (words * 2) + (recipeWords * 8) - (garbage * 6);
+  return (Number(confidence) || 0) + (letters * 0.18) + (words * 2) + (recipeWords * 9) + (structuredLines * 12) + (lineCount * 1.5) - (garbage * 6);
 }
 
 async function readRecipeTextFromImage(filePath) {
@@ -233,22 +246,30 @@ async function readRecipeTextFromImage(filePath) {
       user_defined_dpi: '300'
     });
 
-    const attempts = [
+    const orientations = [
       { label: 'as-uploaded', radians: 0 },
       { label: 'rotated-right', radians: Math.PI / 2 },
       { label: 'upside-down', radians: Math.PI },
       { label: 'rotated-left', radians: -Math.PI / 2 }
     ];
+    const pageModes = [
+      { label: 'auto', mode: PSM.AUTO },
+      { label: 'sparse', mode: PSM.SPARSE_TEXT }
+    ];
     let best = null;
 
-    for (const attempt of attempts) {
-      const result = await worker.recognize(filePath, {
-        rotateAuto: true,
-        rotateRadians: attempt.radians
-      }, { text: true, blocks: false, hocr: false, tsv: false });
-      const text = cleanOcrText(result?.data?.text || '');
-      const score = scoreOcrText(text, result?.data?.confidence);
-      if (!best || score > best.score) best = { ...attempt, text, score };
+    for (const orientation of orientations) {
+      for (const pageMode of pageModes) {
+        await worker.setParameters({ tessedit_pageseg_mode: pageMode.mode });
+        const attempt = { ...orientation, pageMode: pageMode.label };
+        const result = await worker.recognize(filePath, {
+          rotateAuto: true,
+          rotateRadians: attempt.radians
+        }, { text: true, blocks: false, hocr: false, tsv: false });
+        const text = cleanOcrText(result?.data?.text || '');
+        const score = scoreOcrText(text, result?.data?.confidence);
+        if (!best || score > best.score) best = { ...attempt, text, score };
+      }
     }
 
     const text = best?.text || '';
