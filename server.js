@@ -85,6 +85,14 @@ function safeJsonArray(value) {
   }
 }
 
+function normalizeTextList(value) {
+  if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+  return String(value || '')
+    .split(/\r?\n/)
+    .map(line => normalizeRecipeLine(line))
+    .filter(Boolean);
+}
+
 function compareFolders(a, b) {
   const byName = String(a?.name || '').localeCompare(String(b?.name || ''), undefined, {
     sensitivity: 'base',
@@ -472,7 +480,7 @@ function parseJsonBody(req, res, next) {
   let total = 0;
   let settled = false;
   const chunks = [];
-  const limit = 128 * 1024;
+  const limit = 1024 * 1024;
 
   function fail(status, message) {
     if (settled) return;
@@ -643,13 +651,34 @@ const patchRecipe = (req, res) => {
     if (!recipe) return res.status(404).json({ error: 'Not found' });
     const name = body.name ?? req.query?.name;
     const folderId = body.folderId ?? req.query?.folderId;
+    const hasOcrText = Object.prototype.hasOwnProperty.call(body, 'ocrText');
+    const hasIngredients = Object.prototype.hasOwnProperty.call(body, 'ingredients');
+    const hasSteps = Object.prototype.hasOwnProperty.call(body, 'steps');
     if (name !== undefined) {
-      run('UPDATE recipes SET name = ? WHERE id = ?', [String(name), String(req.params.id)]);
+      const cleanName = String(name).trim();
+      if (!cleanName) return res.status(400).json({ error: 'Name required' });
+      run('UPDATE recipes SET name = ? WHERE id = ?', [cleanName, String(req.params.id)]);
     }
     if (folderId !== undefined) {
       const nextFolderId = folderId ? String(folderId) : null;
       if (nextFolderId && !one('SELECT id FROM folders WHERE id = ?', [nextFolderId])) return res.status(400).json({ error: 'Folder not found' });
       run('UPDATE recipes SET folder_id = ? WHERE id = ?', [nextFolderId, String(req.params.id)]);
+    }
+    if (hasOcrText || hasIngredients || hasSteps) {
+      const ocrText = hasOcrText ? cleanOcrText(body.ocrText) : recipe.ocrText;
+      const parsed = parseRecipeText(ocrText);
+      const ingredients = hasIngredients ? normalizeTextList(body.ingredients) : parsed.ingredients;
+      const steps = hasSteps ? normalizeTextList(body.steps) : parsed.steps;
+      run(`UPDATE recipes
+        SET ocr_text = ?, ingredients_json = ?, steps_json = ?, ocr_status = ?, ocr_error = ?
+        WHERE id = ?`, [
+        ocrText,
+        JSON.stringify(ingredients),
+        JSON.stringify(steps),
+        ocrText ? 'complete' : 'empty',
+        null,
+        String(req.params.id)
+      ]);
     }
     persistDb();
     res.json(getRecipe(req.params.id));

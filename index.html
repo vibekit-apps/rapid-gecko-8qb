@@ -124,12 +124,23 @@ button{touch-action:manipulation}
 .lightbox-photo:hover img{transform:scale(1.85)}
 .lightbox-photo:hover .photo-zoom-icon{opacity:0}
 .recipe-text-panel{background:#fffdf8;color:var(--fg);border-radius:10px;padding:1.15rem;min-height:0;max-height:92vh;max-height:92dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.recipe-detail-head{display:flex;align-items:flex-start;gap:.75rem;justify-content:space-between;margin-bottom:.75rem}
+.recipe-detail-head h2{font-size:1.25rem;line-height:1.15;margin:0;min-width:0;overflow-wrap:anywhere}
+.recipe-detail-actions{display:flex;gap:.45rem;flex-shrink:0}
+.recipe-detail-actions .btn{min-height:36px;padding:.45rem .7rem;font-size:.78rem}
 .recipe-text-panel h2{font-size:1.25rem;line-height:1.15;margin-bottom:.75rem}
 .recipe-text-panel h3{font-size:.8rem;text-transform:uppercase;color:var(--mute);margin:1rem 0 .4rem;letter-spacing:.04em}
 .recipe-text-panel ul,.recipe-text-panel ol{padding-left:1.2rem;font-size:.9rem;line-height:1.45}
 .recipe-text-panel li+li{margin-top:.25rem}
 .recipe-text-panel pre{white-space:pre-wrap;font:inherit;font-size:.85rem;line-height:1.45;color:#374151;background:#faf8f5;border:1px solid var(--border);border-radius:8px;padding:.75rem}
 .recipe-empty-text{font-size:.9rem;color:var(--mute)}
+.recipe-edit-form{display:flex;flex-direction:column;gap:.75rem}
+.recipe-edit-form label{display:flex;flex-direction:column;gap:.3rem;font-size:.78rem;font-weight:750;color:var(--mute);text-transform:uppercase;letter-spacing:.035em}
+.recipe-edit-form input,.recipe-edit-form textarea{width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);font:inherit;font-size:.9rem;padding:.65rem .75rem;text-transform:none;letter-spacing:0}
+.recipe-edit-form textarea{min-height:116px;resize:vertical;line-height:1.4}
+.recipe-edit-form textarea.full-text{min-height:190px}
+.recipe-edit-form input:focus,.recipe-edit-form textarea:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.recipe-edit-actions{display:flex;gap:.6rem;justify-content:flex-end;position:sticky;bottom:-1.15rem;background:#fffdf8;padding:.75rem 0 0;margin-top:.25rem}
 .lightbox-close{position:absolute;top:calc(1rem + env(safe-area-inset-top));right:calc(1rem + env(safe-area-inset-right));background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.5rem;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .lightbox-close:hover{background:rgba(255,255,255,.3)}
 
@@ -173,8 +184,10 @@ button{touch-action:manipulation}
   .lightbox-photo img{height:auto;max-height:42dvh}
   .lightbox-photo:hover img{transform:none}
   .recipe-text-panel{max-height:45dvh;border-radius:8px;padding:.9rem}
-  .recipe-text-panel h2{font-size:1rem}
+  .recipe-text-panel h2,.recipe-detail-head h2{font-size:1rem}
   .recipe-text-panel ul,.recipe-text-panel ol{font-size:.92rem}
+  .recipe-detail-head{align-items:center}
+  .recipe-detail-actions .btn{min-height:34px}
 }
 @media(max-width:380px){
   .recipe-grid{grid-template-columns:1fr}
@@ -319,6 +332,8 @@ let pendingRenameId = null;
 let selectedFile = null;
 let searchQuery = '';
 let searchMode = 'recipe';
+let activeRecipeDetailId = null;
+let savingRecipeEdits = false;
 
 const folderNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
@@ -757,16 +772,21 @@ function renderList(items, ordered) {
   const tag = ordered ? 'ol' : 'ul';
   return `<${tag}>${items.map(item => `<li>${esc(item)}</li>`).join('')}</${tag}>`;
 }
-function openRecipe(id) {
-  const recipe = recipes.find(r => r.id === id);
-  if (!recipe) return;
-  document.getElementById('lightboxImg').src = `/uploads/${recipe.filename}`;
+function linesFromList(items) {
+  return Array.isArray(items) ? items.join('\n') : '';
+}
+function renderRecipeDetail(recipe) {
   const rawText = recipe.ocrText ? `<h3>Full Text</h3><pre>${esc(recipe.ocrText)}</pre>` : '';
   const status = recipe.ocrStatus === 'failed'
     ? `<p class="recipe-empty-text">Text scan failed${recipe.ocrError ? `: ${esc(recipe.ocrError)}` : ''}</p>`
     : '';
   document.getElementById('recipeTextPanel').innerHTML = `
-    <h2>${esc(recipe.name)}</h2>
+    <div class="recipe-detail-head">
+      <h2>${esc(recipe.name)}</h2>
+      <div class="recipe-detail-actions">
+        <button type="button" class="btn btn-secondary" onclick="startRecipeEdit()">Edit</button>
+      </div>
+    </div>
     ${status}
     <h3>Ingredients</h3>
     ${renderList(recipe.ingredients, false)}
@@ -774,9 +794,83 @@ function openRecipe(id) {
     ${renderList(recipe.steps, true)}
     ${rawText}
   `;
+}
+function renderRecipeEdit(recipe) {
+  document.getElementById('recipeTextPanel').innerHTML = `
+    <form class="recipe-edit-form" onsubmit="saveRecipeEdits(event)">
+      <label>Name
+        <input type="text" id="detailRecipeName" maxlength="80" value="${esc(recipe.name)}">
+      </label>
+      <label>Ingredients
+        <textarea id="detailRecipeIngredients" spellcheck="true" placeholder="One ingredient per line">${esc(linesFromList(recipe.ingredients))}</textarea>
+      </label>
+      <label>Steps
+        <textarea id="detailRecipeSteps" spellcheck="true" placeholder="One direction per line">${esc(linesFromList(recipe.steps))}</textarea>
+      </label>
+      <label>Full Text
+        <textarea id="detailRecipeOcrText" class="full-text" spellcheck="true">${esc(recipe.ocrText || '')}</textarea>
+      </label>
+      <div class="recipe-edit-actions">
+        <button type="button" class="btn btn-secondary" onclick="cancelRecipeEdit()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="detailRecipeSaveButton">Save</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('detailRecipeName').focus();
+}
+function openRecipe(id) {
+  const recipe = recipes.find(r => r.id === id);
+  if (!recipe) return;
+  activeRecipeDetailId = id;
+  document.getElementById('lightboxImg').src = `/uploads/${recipe.filename}`;
+  renderRecipeDetail(recipe);
   document.getElementById('lightbox').classList.remove('hidden');
 }
-function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+function startRecipeEdit() {
+  const recipe = recipes.find(r => r.id === activeRecipeDetailId);
+  if (recipe) renderRecipeEdit(recipe);
+}
+function cancelRecipeEdit() {
+  const recipe = recipes.find(r => r.id === activeRecipeDetailId);
+  if (recipe) renderRecipeDetail(recipe);
+}
+async function saveRecipeEdits(event) {
+  event.preventDefault();
+  if (savingRecipeEdits || !activeRecipeDetailId) return;
+  const saveButton = document.getElementById('detailRecipeSaveButton');
+  const name = document.getElementById('detailRecipeName').value.trim();
+  if (!name) { alert('Recipe name is required.'); return; }
+  savingRecipeEdits = true;
+  saveButton.disabled = true;
+  saveButton.textContent = 'Saving...';
+  try {
+    const response = await fetch(`/api/recipes/${activeRecipeDetailId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        ingredients: document.getElementById('detailRecipeIngredients').value,
+        steps: document.getElementById('detailRecipeSteps').value,
+        ocrText: document.getElementById('detailRecipeOcrText').value
+      })
+    });
+    const updatedRecipe = await readApiResponse(response);
+    const idx = recipes.findIndex(r => r.id === activeRecipeDetailId);
+    if (idx >= 0) recipes[idx] = updatedRecipe;
+    renderRecipeDetail(updatedRecipe);
+    render();
+  } catch (e) {
+    alert('Could not save recipe edits: ' + e.message);
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save';
+  } finally {
+    savingRecipeEdits = false;
+  }
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.add('hidden');
+  activeRecipeDetailId = null;
+}
 document.getElementById('lightboxPhoto').addEventListener('mousemove', e => {
   const rect = e.currentTarget.getBoundingClientRect();
   e.currentTarget.style.setProperty('--zoom-x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
