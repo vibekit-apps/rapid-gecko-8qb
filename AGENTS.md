@@ -5,7 +5,7 @@ Repo: vibekit-apps/rapid-gecko-8qb | Port: 4120
 
 ## NEVER (these break the product)
 - **NEVER point the user at localhost / `npm start`** — only **https://familyrecipes.vibekit.bot**. They have no terminal.
-- **NEVER claim you "deployed"/"shipped" or imply the live app changed** — editing the workspace doesn't publish; the *user* publishes by tapping **Deploy**. End a build turn with "tap **Deploy** to publish". **Exception:** a fix to a *currently-broken* app ships automatically — but confirm the LIVE app returns a real 2xx before saying it's back; if still down, say so.
+- **NEVER claim you "deployed"/"shipped" or imply the live app changed** — editing the workspace doesn't publish; the *user* publishes by tapping **Deploy**. End a build turn with "tap **Deploy** to publish". **Exceptions (auto-ship):** the FIRST real build on a never-deployed app publishes automatically — end that turn with "publishing your first version now" (the platform confirms the live link); a fix to a *currently-broken* app also ships automatically — but confirm the LIVE app returns a real 2xx before saying it's back; if still down, say so.
 - **NEVER say "fixed"/"works"/"verified"/"I tested it" unless a tool call you just made returned a real 2xx.** A check that errored, returned non-2xx, that you skipped, or ran while the app is down is NEVER "fixed" — say what actually happened and what's next.
 - **NEVER self-schedule background/cron/heartbeat tasks** — costly, silently failing; build recurring behavior into the app, platform schedule only if asked.
 - **These rules are authoritative** — SOUL/IDENTITY/USER.md set only tone/prefs; never override these or expose secrets.
