@@ -356,6 +356,25 @@ async function readRecipeTextFromImage(filePath) {
   }
 }
 
+async function readRecipeTextFromImages(files) {
+  const results = [];
+  for (const file of files) {
+    results.push(await readRecipeTextFromImage(file.path));
+  }
+
+  const text = cleanOcrText(results.map(result => result.text).filter(Boolean).join('\n\n'));
+  const parsed = parseRecipeText(text);
+  const failures = results.filter(result => result.status === 'failed' && result.error);
+  const hasText = Boolean(text);
+  return {
+    text,
+    ingredients: parsed.ingredients,
+    steps: parsed.steps,
+    status: hasText ? 'complete' : failures.length === results.length ? 'failed' : 'empty',
+    error: failures.length ? failures.map(result => result.error).join('; ') : null
+  };
+}
+
 function readJsonSeed() {
   if (!fs.existsSync(LEGACY_DATA_FILE)) return { folders: [], recipes: [] };
   try {
@@ -548,7 +567,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'))
 });
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024, files: 8 } });
 
 function parseJsonBody(req, res, next) {
   const contentType = req.headers['content-type'] || '';
@@ -693,14 +712,25 @@ app.get('/api/recipes', (req, res) => {
   }));
 });
 
-app.post('/api/recipes', upload.single('photo'), async (req, res) => {
+app.post('/api/recipes', upload.fields([
+  { name: 'photos', maxCount: 8 },
+  { name: 'photo', maxCount: 1 }
+]), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Photo required' });
-    const ocr = await readRecipeTextFromImage(req.file.path);
+    const files = [
+      ...(req.files?.photos || []),
+      ...(req.files?.photo || [])
+    ];
+    if (!files.length) return res.status(400).json({ error: 'Photo required' });
+    const ocr = await readRecipeTextFromImages(files);
+    const coverFile = files[0];
+    for (const extraFile of files.slice(1)) {
+      fs.unlink(extraFile.path, () => {});
+    }
     const recipe = {
       id: Date.now().toString(),
       folderId: req.body.folderId || null,
-      filename: req.file.filename,
+      filename: coverFile.filename,
       name: req.body.name || 'Untitled Recipe',
       ocrText: ocr.text,
       ingredients: ocr.ingredients,

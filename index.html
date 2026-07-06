@@ -260,17 +260,17 @@ button{touch-action:manipulation}
 <!-- Add Recipe Modal -->
 <div class="overlay hidden" id="recipeModal">
   <div class="modal">
-    <h3>Add Recipe Photo</h3>
-    <label>Photo</label>
+    <h3>Add Recipe Photos</h3>
+    <label>Photos</label>
     <div class="upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()"
          ondragover="handleDragOver(event)"
          ondragleave="this.classList.remove('drag')"
          ondrop="handleDrop(event)">
       <div class="upload-mark">+</div>
-      <p>Tap to take a photo or choose from library</p>
+      <p>Tap to take photos or choose from library</p>
       <img id="photoPreview" style="display:none">
     </div>
-    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this.files[0])">
+    <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handleFiles(this.files)">
     <label>Recipe Name</label>
     <input type="text" id="recipeNameInput" placeholder="e.g. Grandma's Chocolate Cake" maxlength="80">
     <label>Folder</label>
@@ -340,7 +340,7 @@ let editingFolderId = null;
 let savingFolder = false;
 let pendingMoveId = null;
 let pendingRenameId = null;
-let selectedFile = null;
+let selectedFiles = [];
 let searchQuery = '';
 let searchMode = 'recipe';
 let searchScope = 'all';
@@ -787,22 +787,27 @@ async function deleteFolder(id) {
 
 // Recipe add
 function openAddRecipe() {
-  selectedFile = null;
+  selectedFiles = [];
   document.getElementById('photoPreview').style.display = 'none';
-  document.getElementById('uploadArea').querySelector('p').textContent = 'Tap to take a photo or choose from library';
+  document.getElementById('photoInput').value = '';
+  document.getElementById('uploadArea').querySelector('p').textContent = 'Tap to take photos or choose from library';
   document.getElementById('recipeNameInput').value = '';
   // Populate folder select
   const sel = document.getElementById('recipeFolderSelect');
   sel.innerHTML = recipeFolderOptionHtml(activeFolderId !== 'all' && activeFolderId !== 'none' ? activeFolderId : '');
   openModal('recipeModal');
 }
-function handleFile(file) {
-  if (!file) return;
-  selectedFile = file;
+function handleFiles(files) {
+  const images = Array.from(files || []).filter(file => file.type.startsWith('image/')).slice(0, 8);
+  if (!images.length) return;
+  selectedFiles = images;
   const prev = document.getElementById('photoPreview');
-  prev.src = URL.createObjectURL(file);
+  prev.src = URL.createObjectURL(images[0]);
   prev.style.display = 'block';
-  document.getElementById('uploadArea').querySelector('p').textContent = file.name;
+  const label = images.length === 1
+    ? images[0].name
+    : `${images.length} photos selected, first photo will be the cover`;
+  document.getElementById('uploadArea').querySelector('p').textContent = label;
 }
 function handleDragOver(e) {
   e.preventDefault();
@@ -811,16 +816,15 @@ function handleDragOver(e) {
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('uploadArea').classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) handleFile(file);
+  handleFiles(e.dataTransfer.files);
 }
 async function saveRecipe() {
-  if (!selectedFile) { alert('Please choose a photo first.'); return; }
+  if (!selectedFiles.length) { alert('Please choose at least one photo first.'); return; }
   const name = document.getElementById('recipeNameInput').value.trim() || 'Untitled Recipe';
   const folderId = document.getElementById('recipeFolderSelect').value;
   const saveButton = document.getElementById('recipeSaveButton');
   const fd = new FormData();
-  fd.append('photo', selectedFile);
+  selectedFiles.forEach(file => fd.append('photos', file));
   fd.append('name', name);
   if (folderId) fd.append('folderId', folderId);
   saveButton.disabled = true;
