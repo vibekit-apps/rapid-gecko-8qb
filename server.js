@@ -16,6 +16,8 @@ const LEGACY_DATA_FILE = process.env.LEGACY_DATA_FILE || path.join(DATA_DIR, 'da
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 const LEGACY_JSON_IMPORT_META_KEY = 'legacy_json_import_status';
 const OCR_ALGORITHM_VERSION = '3';
+const ABOUT_RECIPE_LIMIT = 2500;
+const SOURCE_LIMIT = 500;
 const OCR_RECIPE_TERMS = [
   'bake', 'boil', 'broil', 'butter', 'chill', 'combine', 'cook', 'cream',
   'cup', 'cups', 'directions', 'eggs', 'flour', 'fold', 'heat', 'ingredients',
@@ -94,6 +96,10 @@ function normalizeTextList(value) {
     .filter(Boolean);
 }
 
+function limitText(value, limit) {
+  return String(value || '').trim().slice(0, limit);
+}
+
 function compareFolders(a, b) {
   const byName = String(a?.name || '').localeCompare(String(b?.name || ''), undefined, {
     sensitivity: 'base',
@@ -124,6 +130,8 @@ function rowToRecipe(row) {
     ocrText: row.ocr_text || '',
     ingredients: safeJsonArray(row.ingredients_json),
     steps: safeJsonArray(row.steps_json),
+    about: row.about || '',
+    source: row.source || '',
     ocrStatus: row.ocr_status || 'pending',
     ocrError: row.ocr_error || null,
     createdAt: row.created_at
@@ -181,8 +189,10 @@ function getRecipes(options = {}) {
         lower(name) LIKE ? ESCAPE '\\'
         OR lower(ocr_text) LIKE ? ESCAPE '\\'
         OR lower(steps_json) LIKE ? ESCAPE '\\'
+        OR lower(about) LIKE ? ESCAPE '\\'
+        OR lower(source) LIKE ? ESCAPE '\\'
       )`);
-      params.push(like, like, like);
+      params.push(like, like, like, like, like);
     }
   });
 
@@ -462,8 +472,8 @@ function migrateJsonSeed() {
     for (const recipe of seed.recipes) {
       const parsed = parseRecipeText(recipe.ocrText || '');
       run(`INSERT OR IGNORE INTO recipes
-        (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, ocr_status, ocr_error, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, about, source, ocr_status, ocr_error, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
         String(recipe.id || Date.now()),
         recipe.folderId ? String(recipe.folderId) : null,
         String(recipe.filename || ''),
@@ -471,6 +481,8 @@ function migrateJsonSeed() {
         recipe.ocrText || '',
         JSON.stringify(Array.isArray(recipe.ingredients) ? recipe.ingredients : parsed.ingredients),
         JSON.stringify(Array.isArray(recipe.steps) ? recipe.steps : parsed.steps),
+        limitText(recipe.about, ABOUT_RECIPE_LIMIT),
+        limitText(recipe.source, SOURCE_LIMIT),
         recipe.ocrStatus || (recipe.ocrText ? 'complete' : 'pending'),
         recipe.ocrError || null,
         recipe.createdAt || new Date().toISOString()
@@ -585,11 +597,20 @@ async function initDatabase() {
     ocr_text TEXT NOT NULL DEFAULT '',
     ingredients_json TEXT NOT NULL DEFAULT '[]',
     steps_json TEXT NOT NULL DEFAULT '[]',
+    about TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
     ocr_status TEXT NOT NULL DEFAULT 'pending',
     ocr_error TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
   )`);
+  const recipeColumns = all('PRAGMA table_info(recipes)').map(col => col.name);
+  if (!recipeColumns.includes('about')) {
+    run("ALTER TABLE recipes ADD COLUMN about TEXT NOT NULL DEFAULT ''");
+  }
+  if (!recipeColumns.includes('source')) {
+    run("ALTER TABLE recipes ADD COLUMN source TEXT NOT NULL DEFAULT ''");
+  }
   run(`CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -768,14 +789,16 @@ app.post('/api/recipes', upload.fields([
       ocrText: '',
       ingredients: [],
       steps: [],
+      about: limitText(req.body.about, ABOUT_RECIPE_LIMIT),
+      source: limitText(req.body.source, SOURCE_LIMIT),
       ocrStatus: 'pending',
       ocrError: null,
       createdAt: new Date().toISOString()
     };
 
     run(`INSERT INTO recipes
-      (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, ocr_status, ocr_error, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+      (id, folder_id, filename, name, ocr_text, ingredients_json, steps_json, about, source, ocr_status, ocr_error, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
       recipe.id,
       recipe.folderId,
       recipe.filename,
@@ -783,6 +806,8 @@ app.post('/api/recipes', upload.fields([
       recipe.ocrText,
       JSON.stringify(recipe.ingredients),
       JSON.stringify(recipe.steps),
+      recipe.about,
+      recipe.source,
       recipe.ocrStatus,
       recipe.ocrError,
       recipe.createdAt
@@ -805,6 +830,8 @@ const patchRecipe = (req, res) => {
     const hasOcrText = Object.prototype.hasOwnProperty.call(body, 'ocrText');
     const hasIngredients = Object.prototype.hasOwnProperty.call(body, 'ingredients');
     const hasSteps = Object.prototype.hasOwnProperty.call(body, 'steps');
+    const hasAbout = Object.prototype.hasOwnProperty.call(body, 'about');
+    const hasSource = Object.prototype.hasOwnProperty.call(body, 'source');
     if (name !== undefined) {
       const cleanName = String(name).trim();
       if (!cleanName) return res.status(400).json({ error: 'Name required' });
@@ -830,6 +857,12 @@ const patchRecipe = (req, res) => {
         null,
         String(req.params.id)
       ]);
+    }
+    if (hasAbout) {
+      run('UPDATE recipes SET about = ? WHERE id = ?', [limitText(body.about, ABOUT_RECIPE_LIMIT), String(req.params.id)]);
+    }
+    if (hasSource) {
+      run('UPDATE recipes SET source = ? WHERE id = ?', [limitText(body.source, SOURCE_LIMIT), String(req.params.id)]);
     }
     persistDb();
     res.json(getRecipe(req.params.id));

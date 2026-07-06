@@ -102,8 +102,13 @@ button{touch-action:manipulation}
 .modal h3{font-size:1.2rem;font-weight:800;margin-bottom:1.25rem}
 .modal label{display:block;font-size:.8125rem;font-weight:600;color:var(--mute);margin-bottom:.375rem;margin-top:.875rem}
 .modal label:first-of-type{margin-top:0}
-.modal input,.modal select{width:100%;min-height:44px;padding:.625rem .875rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;color:var(--fg)}
-.modal input:focus,.modal select:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.modal input,.modal select,.modal textarea{width:100%;min-height:44px;padding:.625rem .875rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;color:var(--fg)}
+.modal textarea{min-height:128px;resize:vertical;line-height:1.4}
+.modal input:focus,.modal select:focus,.modal textarea:focus{outline:3px solid rgba(182,66,50,.18);border-color:var(--accent)}
+.field-toggle{margin-top:.875rem}
+.field-toggle .btn{width:100%;background:#f4eee5;color:var(--fg);border:1px solid var(--border);text-align:left}
+.optional-field.hidden{display:none}
+.char-hint{font-size:.72rem;color:var(--soft);margin-top:.25rem;text-align:right}
 .upload-area{border:2px dashed #cbbba7;border-radius:12px;min-height:164px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s; background:#f8f3ea;margin-top:.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .upload-area:hover,.upload-area.drag{border-color:var(--accent);background:#fff4ee}
 .upload-area img{max-height:180px;max-width:100%;border-radius:8px;margin-top:.75rem}
@@ -132,12 +137,14 @@ button{touch-action:manipulation}
 .recipe-detail-actions .btn{min-height:36px;padding:.45rem .7rem;font-size:.78rem}
 .recipe-text-panel h2{font-size:1.25rem;line-height:1.15;margin-bottom:.75rem}
 .recipe-text-panel h3{font-size:.8rem;text-transform:uppercase;color:var(--mute);margin:1rem 0 .4rem;letter-spacing:.04em}
+.recipe-text-panel p{font-size:.9rem;line-height:1.5}
 .recipe-text-panel ul,.recipe-text-panel ol{padding-left:1.2rem;font-size:.9rem;line-height:1.45}
 .recipe-text-panel li+li{margin-top:.25rem}
 .recipe-text-panel pre{white-space:pre-wrap;font:inherit;font-size:.85rem;line-height:1.45;color:#374151;background:#faf8f5;border:1px solid var(--border);border-radius:8px;padding:.75rem}
 .recipe-empty-text{font-size:.9rem;color:var(--mute)}
 .recipe-edit-form{display:flex;flex-direction:column;gap:.75rem}
 .recipe-edit-form label{display:flex;flex-direction:column;gap:.3rem;font-size:.78rem;font-weight:750;color:var(--mute);text-transform:uppercase;letter-spacing:.035em}
+.recipe-edit-form .hidden{display:none}
 .recipe-edit-form input,.recipe-edit-form textarea{width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);font:inherit;font-size:.9rem;padding:.65rem .75rem;text-transform:none;letter-spacing:0}
 .recipe-edit-form textarea{min-height:116px;resize:vertical;line-height:1.4}
 .recipe-edit-form textarea.full-text{min-height:190px}
@@ -273,6 +280,16 @@ button{touch-action:manipulation}
     <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handleFiles(this.files)">
     <label>Recipe Name</label>
     <input type="text" id="recipeNameInput" placeholder="e.g. Grandma's Chocolate Cake" maxlength="80">
+    <label>Source</label>
+    <input type="text" id="recipeSourceInput" placeholder="Cookbook, person, website, or note" maxlength="500">
+    <div class="field-toggle">
+      <button type="button" class="btn" id="aboutRecipeToggle" onclick="toggleAboutRecipeField()">About this Recipe</button>
+    </div>
+    <div class="optional-field hidden" id="aboutRecipeField">
+      <label>About the Recipe</label>
+      <textarea id="recipeAboutInput" maxlength="2500" placeholder="Add the story, history, or family notes for this recipe."></textarea>
+      <div class="char-hint"><span id="recipeAboutCount">0</span>/2500</div>
+    </div>
     <label>Folder</label>
     <div style="display:flex;gap:.5rem;align-items:center">
       <select id="recipeFolderSelect" style="flex:1"></select>
@@ -564,6 +581,8 @@ function highlightMatches(value, terms) {
 function searchSnippet(recipe, terms) {
   const sources = [
     { label: 'Name', text: recipe.name || '' },
+    { label: 'Source', text: recipe.source || '' },
+    { label: 'About', text: recipe.about || '' },
     { label: 'Ingredients', text: Array.isArray(recipe.ingredients) ? recipe.ingredients.join(' / ') : '' },
     { label: 'Steps', text: Array.isArray(recipe.steps) ? recipe.steps.join(' / ') : '' },
     { label: 'Text', text: recipe.ocrText || '' }
@@ -793,6 +812,10 @@ function openAddRecipe() {
   document.getElementById('photoInput').value = '';
   document.getElementById('uploadArea').querySelector('p').textContent = 'Tap to take photos or choose from library';
   document.getElementById('recipeNameInput').value = '';
+  document.getElementById('recipeSourceInput').value = '';
+  document.getElementById('recipeAboutInput').value = '';
+  document.getElementById('aboutRecipeField').classList.add('hidden');
+  updateRecipeAboutCount();
   // Populate folder select
   const sel = document.getElementById('recipeFolderSelect');
   sel.innerHTML = recipeFolderOptionHtml(activeFolderId !== 'all' && activeFolderId !== 'none' ? activeFolderId : '');
@@ -819,6 +842,16 @@ function handleDrop(e) {
   document.getElementById('uploadArea').classList.remove('drag');
   handleFiles(e.dataTransfer.files);
 }
+function updateRecipeAboutCount() {
+  const input = document.getElementById('recipeAboutInput');
+  const count = document.getElementById('recipeAboutCount');
+  if (input && count) count.textContent = input.value.length;
+}
+function toggleAboutRecipeField() {
+  const field = document.getElementById('aboutRecipeField');
+  field.classList.toggle('hidden');
+  if (!field.classList.contains('hidden')) document.getElementById('recipeAboutInput').focus();
+}
 async function saveRecipe() {
   if (!selectedFiles.length) { alert('Please choose at least one photo first.'); return; }
   const name = document.getElementById('recipeNameInput').value.trim() || 'Untitled Recipe';
@@ -827,6 +860,8 @@ async function saveRecipe() {
   const fd = new FormData();
   selectedFiles.forEach(file => fd.append('photos', file));
   fd.append('name', name);
+  fd.append('source', document.getElementById('recipeSourceInput').value);
+  fd.append('about', document.getElementById('recipeAboutInput').value);
   if (folderId) fd.append('folderId', folderId);
   saveButton.disabled = true;
   saveButton.textContent = 'Saving...';
@@ -911,6 +946,8 @@ function linesFromList(items) {
 }
 function renderRecipeDetail(recipe) {
   const rawText = recipe.ocrText ? `<h3>Full Text</h3><pre>${esc(recipe.ocrText)}</pre>` : '';
+  const source = recipe.source ? `<h3>Source</h3><p>${esc(recipe.source)}</p>` : '';
+  const about = recipe.about ? `<h3>About the Recipe</h3><p>${esc(recipe.about).replace(/\n/g, '<br>')}</p>` : '';
   const status = recipe.ocrStatus === 'failed'
     ? `<p class="recipe-empty-text">Text scan failed${recipe.ocrError ? `: ${esc(recipe.ocrError)}` : ''}</p>`
     : '';
@@ -922,6 +959,8 @@ function renderRecipeDetail(recipe) {
       </div>
     </div>
     ${status}
+    ${source}
+    ${about}
     <h3>Ingredients</h3>
     ${renderList(recipe.ingredients, false)}
     <h3>Steps</h3>
@@ -934,6 +973,14 @@ function renderRecipeEdit(recipe) {
     <form class="recipe-edit-form" onsubmit="saveRecipeEdits(event)">
       <label>Name
         <input type="text" id="detailRecipeName" maxlength="80" value="${esc(recipe.name)}">
+      </label>
+      <label>Source
+        <input type="text" id="detailRecipeSource" maxlength="500" value="${esc(recipe.source || '')}" placeholder="Cookbook, person, website, or note">
+      </label>
+      <button type="button" class="btn btn-secondary" onclick="toggleDetailAboutField()">About this Recipe</button>
+      <label class="${recipe.about ? '' : 'hidden'}" id="detailAboutField">About the Recipe
+        <textarea id="detailRecipeAbout" maxlength="2500" spellcheck="true" placeholder="Add the story, history, or family notes for this recipe.">${esc(recipe.about || '')}</textarea>
+        <span class="char-hint"><span id="detailRecipeAboutCount">0</span>/2500</span>
       </label>
       <label>Ingredients
         <textarea id="detailRecipeIngredients" spellcheck="true" placeholder="One ingredient per line">${esc(linesFromList(recipe.ingredients))}</textarea>
@@ -951,6 +998,18 @@ function renderRecipeEdit(recipe) {
     </form>
   `;
   document.getElementById('detailRecipeName').focus();
+  document.getElementById('detailRecipeAbout').addEventListener('input', updateDetailRecipeAboutCount);
+  updateDetailRecipeAboutCount();
+}
+function updateDetailRecipeAboutCount() {
+  const input = document.getElementById('detailRecipeAbout');
+  const count = document.getElementById('detailRecipeAboutCount');
+  if (input && count) count.textContent = input.value.length;
+}
+function toggleDetailAboutField() {
+  const field = document.getElementById('detailAboutField');
+  field.classList.toggle('hidden');
+  if (!field.classList.contains('hidden')) document.getElementById('detailRecipeAbout').focus();
 }
 function openRecipe(id) {
   const recipe = recipes.find(r => r.id === id);
@@ -983,6 +1042,8 @@ async function saveRecipeEdits(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
+        source: document.getElementById('detailRecipeSource').value,
+        about: document.getElementById('detailRecipeAbout').value,
         ingredients: document.getElementById('detailRecipeIngredients').value,
         steps: document.getElementById('detailRecipeSteps').value,
         ocrText: document.getElementById('detailRecipeOcrText').value
@@ -1025,6 +1086,7 @@ document.getElementById('recipeSearchInput').addEventListener('input', e => {
   scheduleSearch();
 });
 document.getElementById('recipeNameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveRecipe(); });
+document.getElementById('recipeAboutInput').addEventListener('input', updateRecipeAboutCount);
 document.getElementById('renameInput').addEventListener('keydown', e => { if (e.key==='Enter') doRename(); });
 document.getElementById('inlineFolderName').addEventListener('keydown', e => { if (e.key==='Enter') createInlineFolder(); });
 
