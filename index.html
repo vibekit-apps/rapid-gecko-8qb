@@ -692,6 +692,7 @@ function renderGrid() {
         <div class="card-name">${highlightMatches(r.name, searchTerms)}</div>
         <div class="card-date">${new Date(r.createdAt).toLocaleDateString()}</div>
         ${searchTerms.length ? `<div class="card-meta">${searchSnippet(r, searchTerms)}</div>` : Array.isArray(r.ingredients) && r.ingredients.length ? `<div class="card-meta">${esc(r.ingredients.slice(0, 2).join(' / '))}</div>` : ''}
+        ${r.ocrStatus === 'pending' ? '<div class="card-meta">Reading text...</div>' : ''}
         ${r.ocrStatus === 'failed' ? '<div class="card-meta">Text scan failed</div>' : ''}
       </div>
     </div>`).join('');
@@ -828,7 +829,7 @@ async function saveRecipe() {
   fd.append('name', name);
   if (folderId) fd.append('folderId', folderId);
   saveButton.disabled = true;
-  saveButton.textContent = 'Reading...';
+  saveButton.textContent = 'Saving...';
   try {
     const r = await fetch('/api/recipes', { method:'POST', body: fd });
     recipes.push(await readApiResponse(r));

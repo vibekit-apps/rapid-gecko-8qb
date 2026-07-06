@@ -375,6 +375,43 @@ async function readRecipeTextFromImages(files) {
   };
 }
 
+async function updateRecipeOcrFromImages(recipeId, files) {
+  try {
+    const existing = getRecipe(recipeId);
+    if (!existing) return;
+    const availableFiles = files.filter(file => file?.path && fs.existsSync(file.path));
+    if (!availableFiles.length) return;
+    const ocr = await readRecipeTextFromImages(availableFiles);
+    run(`UPDATE recipes
+      SET ocr_text = ?, ingredients_json = ?, steps_json = ?, ocr_status = ?, ocr_error = ?
+      WHERE id = ?`, [
+      ocr.text,
+      JSON.stringify(ocr.ingredients),
+      JSON.stringify(ocr.steps),
+      ocr.status,
+      ocr.error,
+      String(recipeId)
+    ]);
+    persistDb();
+  } catch (e) {
+    console.error('Background OCR failed:', e.stack || e);
+    try {
+      run('UPDATE recipes SET ocr_status = ?, ocr_error = ? WHERE id = ?', [
+        'failed',
+        e.message || 'Text scan failed',
+        String(recipeId)
+      ]);
+      persistDb();
+    } catch (updateError) {
+      console.error('Background OCR status update failed:', updateError.stack || updateError);
+    }
+  } finally {
+    for (const extraFile of files.slice(1)) {
+      if (extraFile?.path) fs.unlink(extraFile.path, () => {});
+    }
+  }
+}
+
 function readJsonSeed() {
   if (!fs.existsSync(LEGACY_DATA_FILE)) return { folders: [], recipes: [] };
   try {
@@ -722,21 +759,17 @@ app.post('/api/recipes', upload.fields([
       ...(req.files?.photo || [])
     ];
     if (!files.length) return res.status(400).json({ error: 'Photo required' });
-    const ocr = await readRecipeTextFromImages(files);
     const coverFile = files[0];
-    for (const extraFile of files.slice(1)) {
-      fs.unlink(extraFile.path, () => {});
-    }
     const recipe = {
       id: Date.now().toString(),
       folderId: req.body.folderId || null,
       filename: coverFile.filename,
       name: req.body.name || 'Untitled Recipe',
-      ocrText: ocr.text,
-      ingredients: ocr.ingredients,
-      steps: ocr.steps,
-      ocrStatus: ocr.status,
-      ocrError: ocr.error,
+      ocrText: '',
+      ingredients: [],
+      steps: [],
+      ocrStatus: 'pending',
+      ocrError: null,
       createdAt: new Date().toISOString()
     };
 
@@ -756,6 +789,9 @@ app.post('/api/recipes', upload.fields([
     ]);
     persistDb();
     res.json(recipe);
+    setImmediate(() => {
+      updateRecipeOcrFromImages(recipe.id, files).catch(err => console.error('Background OCR failed:', err.stack || err));
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
