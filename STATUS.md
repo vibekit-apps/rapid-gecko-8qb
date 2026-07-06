@@ -1,5 +1,5 @@
 # STATUS.md — Live Infrastructure (auto-updated)
-_Last updated: 2026-07-06T10:54:02.746Z_
+_Last updated: 2026-07-06T11:05:46.020Z_
 
 ## Container
 - **Name**: vk-familyrecipes
@@ -14,7 +14,7 @@ _Last updated: 2026-07-06T10:54:02.746Z_
 - **Subdomain**: familyrecipes.vibekit.bot
 - **DB Status**: running
 - **Health Failures**: 0
-- **Last Healthy**: 2026-07-06T10:53:40.353+00:00
+- **Last Healthy**: 2026-07-06T11:04:52.816+00:00
 
 
 ## Host
